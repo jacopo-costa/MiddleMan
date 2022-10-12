@@ -29,3 +29,7 @@ def get_endpoint(hostnameid, query):
     else:
         return requests.get(gl.region + "/endpoint/v1/endpoints/" + hostnameid,
                             headers={"Authorization": gl.sophos_auth, "X-Tenant-ID": gl.sophos_id}).json()
+
+def get_endpoints_groups():
+    return requests.get(gl.region + "/endpoint/v1/endpoint-groups",
+                        headers={"Authorization": gl.sophos_auth, "X-Tenant-ID": gl.sophos_id}).json()

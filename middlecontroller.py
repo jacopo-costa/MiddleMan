@@ -20,11 +20,11 @@ def routine():
                     if serv['status'] != 'running':
                         zabbix.send_alert(host, serv['name'].lower().replace(' ', '.'), serv['status'])
 
-            # cartella_clinica = check_sophos_health(sophos.list_endpoints(region, sophosAuth, sophosID))
+            # cartella_clinica = check_sophos_health(sophos.list_endpoints())
             # for item in cartella_clinica:
             #     zabbix.send_alert(item['hostname'], item['health'])
         sleep(300)
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         gl.thread_flag = False
         gl.token_expired = True
