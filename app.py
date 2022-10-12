@@ -1,14 +1,10 @@
-import datetime
 import random
 import string
 import threading
-from time import sleep
 
-import requests
-from flask import Flask, jsonify
+from flask import Flask, render_template, redirect, url_for, request, session
 from flask_cors import CORS, cross_origin
 
-import global_vars as gl
 import middlecontroller
 import sophos
 import zabbix
@@ -18,83 +14,95 @@ app.secret_key = ''.join(random.choices(string.ascii_uppercase + string.digits, 
 CORS(app)
 
 
+@app.route("/")
+def index():
+    if not session:
+        return redirect(url_for('login'))
+    return render_template('index.html')
+
+
 @app.route("/stop")
 def stop():
+    if not session:
+        return redirect(url_for('login'))
+
     for th in threading.enumerate():
         if th.name == 'middleman':
-            if not gl.thread_flag:
-                return jsonify(message='Thread already shutting down', code=400)
-            gl.thread_flag = False
-            return jsonify(message='Thread stopped', code=200)
+            if not middlecontroller.flag:
+                return render_template('start.html', error='Thread already shutting down')
+            middlecontroller.flag = False
+            return render_template('start.html', message='Job stopped')
 
-    return jsonify(message='No thread running', code=400)
+    return render_template('index.html', error='No thread running')
 
 
-@app.route("/status")
+@app.route("/checktoken")
 @cross_origin()
-def check_thread():
-    return str(gl.thread_flag)
+def check_token():
+    return str(middlecontroller.tokenExpired)
 
 
 @app.route("/start")
 def start():
+    if not session:
+        return redirect(url_for('login'))
+
     for th in threading.enumerate():
-        if th.name == 'middleman' and gl.thread_flag:
-            return jsonify(message='Thread already running', code=400)
-        elif th.name == 'middleman' and not gl.thread_flag:
-            gl.thread_flag = True
-            return jsonify(message='Thread started', code=200)
+        if th.name == 'middleman':
+            return render_template('start.html', error='Thread already running')
 
-    gl.thread_flag = True
+    if middlecontroller.tokenExpired:
+        return render_template('login.html', error='Token is expired, login again')
 
-    middlethread = threading.Thread(target=middlecontroller.routine, name='middleman')
+    middlecontroller.flag = True
+
+    middlethread = threading.Thread(target=middlecontroller.hostcheck, name='middleman',
+                                    args=[session['X-Region'], session['Authorization'], session['X-Tenant-ID'],
+                                          session['Zabbix-auth'], session['Zabbix-ID']])
 
     middlethread.start()
 
-    return jsonify(message='Thread started', code=200)
+    message = 'Thread started'
+    return render_template('start.html', message=message)
+    # return sophos.get_endpoint(session['X-Region'], session['Authorization'], session['X-Tenant-ID'],
+    #                            '1d9fe137-13e0-4780-9bfe-b80a7a6e6d3f')
 
 
-def initialize():
-    cursor = gl.db.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM credentials')
-    result = cursor.fetchone()
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    if session:
+        return render_template('index.html', error='You are already logged in')
 
-    sid = result['SophosID']
-    secret = result['SophosSecret']
-    zuser = result['ZabbixUser']
-    zpass = result['ZabbixPass']
-    cursor.close()
+    if request.method == 'POST':
+        sophos_id = request.form.get('sophosid')
+        sophos_secret = request.form.get('sophosauth')
+        zabbix_user = request.form.get('zabbixuser')
+        zabbix_password = request.form.get('zabbixpass')
 
-    slogin = sophos.login(sid, secret)
-    whoami = sophos.whoami(slogin)
-    token = slogin['token_type'].capitalize() + " " + slogin['access_token']
+        slogin = sophos.login(sophos_id, sophos_secret)
 
-    zabbix_login = zabbix.login(zuser, zpass)
+        if slogin['errorCode'] != 'success':
+            error = 'Sophos -> ' + slogin['errorCode']
+            return render_template('login.html', error=error)
 
-    gl.sophos_auth = token
-    gl.sophos_id = whoami['id']
-    gl.region = whoami['apiHosts']['dataRegion']
-    gl.zabbix_auth = zabbix_login['result']
-    gl.zabbix_id = zabbix_login['id']
+        whoami = sophos.whoami(slogin)
+        token = slogin['token_type'].capitalize() + " " + slogin['access_token']
 
+        zabbix_login = zabbix.login(zabbix_user, zabbix_password)
+        if 'error' in zabbix_login:
+            error = 'Zabbix -> ' + zabbix_login['error']['data']
+            return render_template('login.html', error=error)
 
-def re_login():
-    while True:
-        if gl.token_expired:
-            print('Richiesto nuovo token: ' + str(datetime.datetime.now()))
-            # app.logger.info('Richiesto nuovo token: ' + str(datetime.datetime.now()))
-            initialize()
-            requests.get('http://localhost:5000/start')
-            gl.token_expired = False
-        sleep(300)
+        session['Authorization'] = token
+        session['X-Tenant-ID'] = whoami['id']
+        session['X-Region'] = whoami['apiHosts']['dataRegion']
+        session['Zabbix-auth'] = zabbix_login['result']
+        session['Zabbix-ID'] = zabbix_login['id']
+
+        return render_template('index.html', message='You are successfully logged in')
+
+    return render_template('login.html')
 
 
 if __name__ == '__main__':
-    initialize()
-
-    tokenthread = threading.Thread(target=re_login, name='tokenthread')
-    tokenthread.start()
-
-    print('Server avviato: ' + str(datetime.datetime.now()))
-    # app.logger.info('Server avviato: ' + str(datetime.datetime.now()))
     app.run(debug=True)

@@ -1,7 +1,5 @@
 import requests
 
-import global_vars as gl
-
 url_token = "https://id.sophos.com/api/v2/oauth2/token"
 url_id = "https://api.central.sophos.com/whoami/v1"
 
@@ -11,21 +9,19 @@ def login(client_id, client_secret):
     return requests.post(url_token, headers={"Content-Type": "application/x-www-form-urlencoded"}, data=data).json()
 
 
-def whoami(login_data):
-    authorization = login_data['token_type'].capitalize() + " " + login_data['access_token']
+def whoami(login):
+    authorization = login['token_type'].capitalize() + " " + login['access_token']
 
     return requests.get(url_id, headers={"Authorization": authorization}).json()
 
 
-def list_endpoints():
-    return requests.get(gl.region + "/endpoint/v1/endpoints",
-                        headers={"Authorization": gl.sophos_auth, "X-Tenant-ID": gl.sophos_id}).json()
+def list_endpoints(region, auth, id):
+    return requests.get(region + "/endpoint/v1/endpoints", headers={"Authorization": auth, "X-Tenant-ID": id}).json()
 
-
-def get_endpoint(hostnameid, query):
+def get_endpoint(region, auth, id, hostnameid, query):
     if query:
-        return requests.get(gl.region + "/endpoint/v1/endpoints/" + query,
-                            headers={"Authorization": gl.sophos_auth, "X-Tenant-ID": gl.sophos_id}).json()
+        return requests.get(region + "/endpoint/v1/endpoints/" + query,
+                        headers={"Authorization": auth, "X-Tenant-ID": id}).json()
     else:
-        return requests.get(gl.region + "/endpoint/v1/endpoints/" + hostnameid,
-                            headers={"Authorization": gl.sophos_auth, "X-Tenant-ID": gl.sophos_id}).json()
+        return requests.get(region + "/endpoint/v1/endpoints/" + hostnameid,
+                            headers={"Authorization": auth, "X-Tenant-ID": id}).json()
