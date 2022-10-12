@@ -1,13 +1,46 @@
+import json
+from functools import wraps
 from random import randint
 
 import requests
+from flask import request, jsonify, Blueprint
 from pyzabbix import ZabbixSender, ZabbixMetric
 
-import global_vars as gl
+url = "http://Zabbix-Front:8080/api_jsonrpc.php"
+user = 'Admin'
+password = 'cavolfiore2022'
+
+zabbix = Blueprint('zabbix', __name__)
 
 
-def login(user, password):
-    zabbix_id = randint(1, 200)
+def token_required(f):
+    @wraps(f)
+    def decorator(*args, **kwargs):
+        token = None
+        id = None
+
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
+
+        if 'x-request-id' in request.headers:
+            id = request.headers['x-request-id']
+
+        if not token or not id:
+            return jsonify({'message': 'Token or ID is missing!'}), 401
+
+        current_user = {
+            "id": id,
+            "auth": token
+        }
+
+        return f(current_user, *args, **kwargs)
+
+    return decorator
+
+
+@zabbix.route("/zabbix/login", methods=['GET'])
+def zabbix_login():
+    id = randint(1, 200)
 
     loginreq = {
         "jsonrpc": "2.0",
@@ -16,13 +49,19 @@ def login(user, password):
             "user": user,
             "password": password
         },
-        "id": zabbix_id
+        "id": id
     }
 
-    return requests.post(gl.zabbix_url, json=loginreq).json()
+    res = requests.post(url, json=loginreq).json()
+    return jsonify(message="Login executed",
+                   code=200,
+                   token=res['result'],
+                   id=res['id'])
 
 
-def list_hosts():
+@zabbix.route("/zabbix/gethosts", methods=['GET'])
+@token_required
+def list_hosts(current_user):
     gethosts = {
         "jsonrpc": "2.0",
         "method": "host.get",
@@ -37,50 +76,36 @@ def list_hosts():
                 "ip"
             ]
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    return requests.post(gl.zabbix_url, json=gethosts).json()
+    return requests.post(url, json=gethosts).json()
 
 
-def get_host(hostname):
+@zabbix.route("/zabbix/gethost", methods=['GET'])
+@token_required
+def get_host(current_user):
+    list = json.loads(request.json)
+
     gethost = {
         "jsonrpc": "2.0",
         "method": "host.get",
         "params": {
             "filter": {
-                "host": hostname
+                "host": list
             }
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    return requests.post(gl.zabbix_url, json=gethost).json()
+    return requests.post(url, json=gethost).json()
 
 
-def get_host_groups(hostname):
-    gethostgroups = {
-        "jsonrpc": "2.0",
-        "method": "host.get",
-        "params": {
-            "output": ["hostid"],
-            "selectHostGroups": "extend",
-            "filter": {
-                "host": [
-                    hostname
-                ]
-            }
-        },
-        "auth": gl.zabbix_auth,
-        "id": gl.zabbix_id
-    }
-
-    return requests.get(gl.zabbix_url, json=gethostgroups).json()
-
-
-def get_host_group(groupname):
+@zabbix.route("/zabbix/gethostgroup/<groupname>", methods=['GET'])
+@token_required
+def get_host_group(current_user, groupname):
     gethostgroup = {
         "jsonrpc": "2.0",
         "method": "hostgroup.get",
@@ -92,77 +117,44 @@ def get_host_group(groupname):
                 ]
             }
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    return requests.get(gl.zabbix_url, json=gethostgroup).json()
+    return requests.get(url, json=gethostgroup).json()
 
 
-def get_items(hostid):
-    getitems = {
-        "jsonrpc": "2.0",
-        "method": "item.get",
-        "params": {
-            "output": "extend",
-            "hostids": hostid
-        },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
-    }
+@zabbix.route("/zabbix/addhost", methods=['POST'])
+@token_required
+def add_host(current_user):
+    host = request.args.get('host')
+    groupid = request.args.get('groupid')
 
-    return requests.get(gl.zabbix_url, json=getitems).json()
-
-
-def add_host_group(groupname):
-    addhostgroup = {
-        "jsonrpc": "2.0",
-        "method": "hostgroup.create",
-        "params": {
-            "name": groupname
-        },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
-    }
-
-    return requests.post(gl.zabbix_url, json=addhostgroup).json()
-
-
-def update_host_groups(hostid, groups):
-    updategroups = {
-        "jsonrpc": "2.0",
-        "method": "host.update",
-        "params": {
-            "hostid": hostid,
-            "groups": groups
-        },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
-    }
-
-    return requests.post(gl.zabbix_url, json=updategroups).json()
-
-
-def add_host(hostname, groupid):
     gethost = {
         "jsonrpc": "2.0",
         "method": "host.create",
         "params": {
-            "host": hostname,
+            "host": host,
             "groups": [
                 {
                     "groupid": groupid
                 }
             ]
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    return requests.post(gl.zabbix_url, json=gethost).json()
+    return requests.post(url, json=gethost).json()
 
 
-def add_item(hostid, name, key):
+@zabbix.route("/zabbix/additem", methods=['POST'])
+@token_required
+def add_item(current_user):
+    hostid = request.args.get('hostid')
+    name = request.args.get('name')
+    key = request.args.get('key')
+
     additem = {
         "jsonrpc": "2.0",
         "method": "item.create",
@@ -173,39 +165,44 @@ def add_item(hostid, name, key):
             "type": 2,
             "value_type": 4
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    return requests.post(gl.zabbix_url, json=additem).json()
+    return requests.post(url, json=additem).json()
 
 
-def add_trigger(desc, exp):
+@zabbix.route("/zabbix/addtrigger/<host>", methods=['POST'])
+@token_required
+def add_trigger(current_user, host):
     addtrigger = {
         "jsonrpc": "2.0",
         "method": "trigger.create",
         "params": [
             {
-                "description": desc,
-                "expression": exp,
-                "priority": 2
+                "description": "Sophos detected an anomaly",
+                "expression": 'last(/' + host + '/sophos.health)<>"good"',
+                "priority": 4
             }
         ],
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": current_user['id'],
+        "auth": current_user['auth']
     }
 
-    # 'last(/' + host + '/sophos.health)<>"good"'
-
-    return requests.post(gl.zabbix_url, json=addtrigger).json()
+    return requests.post(url, json=addtrigger).json()
 
 
-def send_alert(hostname, key, data):
-    print("{} {} {}".format(hostname, key, data))
+@zabbix.route("/zabbix/sendalert", methods=['POST'])
+@token_required
+def send_alert(current_user):
+    alert = request.json
+    print(alert)
+
     metrics = []
-    m = ZabbixMetric(hostname, key, data)
+    m = ZabbixMetric(alert['hostname'], 'sophos.health', alert['health'])
     metrics.append(m)
-    zbx = ZabbixSender('Zabbix')
+    zbx = ZabbixSender('172.20.0.3')
     zbx.send(metrics)
 
-    return
+    return jsonify(message="Alert sent",
+                   code=200)

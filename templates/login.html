@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block body %}
+
+{% if error %}
+<p class=error><strong>Error:</strong> {{ error }}
+    {% endif %}
+<div id="box">
+    <form action="login" id="loginform" method="POST" name="loginform">
+
+        <label>Sophos ID:</label><br>
+        <input id="client_id" name="client_id" type="text"><br><br>
+
+        <label>Sophos Secret:</label><br>
+        <input id="secret" name="secret" type="password"><br><br>
+
+        <label>Zabbix User:</label><br>
+        <input id="zabbixu" name="zabbixu" type="text"><br><br>
+
+        <label>Zabbix Password:</label><br>
+        <input id="zabbixp" name="zabbixp" type="password"><br><br>
+
+        <input type="submit" value="Submit">
+    </form>
+</div>
+
+{% endblock %}
