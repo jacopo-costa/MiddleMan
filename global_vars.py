@@ -1,14 +1,10 @@
-import mysql.connector
+region = ""
+sophos_auth = ""
+sophos_id = ""
 
-db = mysql.connector.connect(host="middlesql", user="root", password="middlemanpw", database="middleman")
-
-zabbix_url = "http://Zabbix:8080/api_jsonrpc.php"
-
-sophos_auth = ''
-sophos_id = ''
-region = ''
-zabbix_auth = ''
-zabbix_id = ''
-
-token_expired = False
 thread_flag = False
+token_expired = False
+
+zabbix_auth = ""
+zabbix_id = ""
+zabbix_url = "http://Zabbix-Front:8080/api_jsonrpc.php"

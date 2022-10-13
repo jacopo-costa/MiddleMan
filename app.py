@@ -1,6 +1,9 @@
 import datetime
+import logging
+import os
 import random
 import string
+import sys
 import threading
 from time import sleep
 
@@ -17,17 +20,22 @@ app = Flask(__name__)
 app.secret_key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 CORS(app)
 
+logging.basicConfig(level=logging.INFO)
 
-@app.route("/stop")
-def stop():
-    for th in threading.enumerate():
-        if th.name == 'middleman':
-            if not gl.thread_flag:
-                return jsonify(message='Thread already shutting down', code=400)
-            gl.thread_flag = False
-            return jsonify(message='Thread stopped', code=200)
 
-    return jsonify(message='No thread running', code=400)
+@app.route("/")
+def index():
+    zid = gl.zabbix_id
+    zauth = gl.zabbix_auth
+    sid = gl.sophos_id
+    sauth = gl.sophos_auth
+    reg = gl.region
+
+    return jsonify(ZabbixID=zid,
+                   ZabbixAuth=zauth,
+                   SophosID=sid,
+                   SophosAuth=sauth,
+                   Region=reg)
 
 
 @app.route("/status")
@@ -54,16 +62,27 @@ def start():
     return jsonify(message='Thread started', code=200)
 
 
-def initialize():
-    cursor = gl.db.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM credentials')
-    result = cursor.fetchone()
+@app.route("/stop")
+def stop():
+    for th in threading.enumerate():
+        if th.name == 'middleman':
+            if not gl.thread_flag:
+                return jsonify(message='Thread already shutting down', code=400)
+            gl.thread_flag = False
+            return jsonify(message='Thread stopped', code=200)
 
-    sid = result['SophosID']
-    secret = result['SophosSecret']
-    zuser = result['ZabbixUser']
-    zpass = result['ZabbixPass']
-    cursor.close()
+    return jsonify(message='No thread running', code=400)
+
+
+def initialize():
+    try:
+        sid = os.environ['SOPHOS_ID']
+        secret = os.environ['SOPHOS_SECRET']
+        zuser = os.environ['ZABBIX_USER']
+        zpass = os.environ['ZABBIX_PASS']
+    except KeyError:
+        logging.error("Environment variables not set")
+        sys.exit(1)
 
     slogin = sophos.login(sid, secret)
     whoami = sophos.whoami(slogin)
@@ -77,12 +96,14 @@ def initialize():
     gl.zabbix_auth = zabbix_login['result']
     gl.zabbix_id = zabbix_login['id']
 
+    tokenthread = threading.Thread(target=re_login, name='tokenthread')
+    tokenthread.start()
+
 
 def re_login():
     while True:
         if gl.token_expired:
-            print('Richiesto nuovo token: ' + str(datetime.datetime.now()))
-            # app.logger.info('Richiesto nuovo token: ' + str(datetime.datetime.now()))
+            logging.info('Richiesto nuovo token: ' + str(datetime.datetime.now()))
             initialize()
             requests.get('http://localhost:5000/start')
             gl.token_expired = False
@@ -91,10 +112,5 @@ def re_login():
 
 if __name__ == '__main__':
     initialize()
-
-    tokenthread = threading.Thread(target=re_login, name='tokenthread')
-    tokenthread.start()
-
-    print('Server avviato: ' + str(datetime.datetime.now()))
-    # app.logger.info('Server avviato: ' + str(datetime.datetime.now()))
-    app.run(debug=True)
+    logging.info("Server avviato")
+    app.run(host='0.0.0.0', port=5000)
