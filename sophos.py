@@ -64,6 +64,16 @@ def isolate(host):
                                 "comment": "Isolating " + host}
                           ).json()
 
+def last_24h_alerts():
+    return requests.get(gl.region + "/siem/v1/alerts",
+                        headers={"Authorization": gl.sophos_auth,
+                                 "X-Tenant-ID": gl.sophos_id}).json()
+
+def last_24h_events():
+    return requests.get(gl.region + "/siem/v1/events",
+                        headers={"Authorization": gl.sophos_auth,
+                                 "X-Tenant-ID": gl.sophos_id}).json()
+
 
 def list_endpoints():
     return requests.get(gl.region + "/endpoint/v1/endpoints",
