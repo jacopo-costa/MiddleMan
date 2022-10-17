@@ -2,9 +2,6 @@ import requests
 
 import global_vars as gl
 
-url_token = "https://id.sophos.com/api/v2/oauth2/token"
-url_id = "https://api.central.sophos.com/whoami/v1"
-
 
 def deisolate(host):
     hostid = get_endpoint('', '?hostnameContains=' + host)['items'][0]['id']
@@ -64,10 +61,12 @@ def isolate(host):
                                 "comment": "Isolating " + host}
                           ).json()
 
+
 def last_24h_alerts():
     return requests.get(gl.region + "/siem/v1/alerts",
                         headers={"Authorization": gl.sophos_auth,
                                  "X-Tenant-ID": gl.sophos_id}).json()
+
 
 def last_24h_events():
     return requests.get(gl.region + "/siem/v1/events",
@@ -83,10 +82,11 @@ def list_endpoints():
 
 def login(client_id, client_secret):
     data = "grant_type=client_credentials&client_id=" + client_id + "&client_secret=" + client_secret + "&scope=token"
-    return requests.post(url_token, headers={"Content-Type": "application/x-www-form-urlencoded"}, data=data).json()
+    return requests.post(gl.url_sophos_login, headers={"Content-Type": "application/x-www-form-urlencoded"},
+                         data=data).json()
 
 
 def whoami(login_data):
     authorization = login_data['token_type'].capitalize() + " " + login_data['access_token']
 
-    return requests.get(url_id, headers={"Authorization": authorization}).json()
+    return requests.get(gl.url_sophos_whoami, headers={"Authorization": authorization}).json()

@@ -22,7 +22,7 @@ def add_host(hostname, groupid):
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=gethost).json()
+    return requests.post(gl.url_zabbix, json=gethost).json()
 
 
 def add_host_group(groupname):
@@ -36,7 +36,7 @@ def add_host_group(groupname):
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=addhostgroup).json()
+    return requests.post(gl.url_zabbix, json=addhostgroup).json()
 
 
 def add_item(hostid, name, key):
@@ -54,7 +54,7 @@ def add_item(hostid, name, key):
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=additem).json()
+    return requests.post(gl.url_zabbix, json=additem).json()
 
 
 def add_trigger(desc, exp):
@@ -72,9 +72,7 @@ def add_trigger(desc, exp):
         "auth": gl.zabbix_auth
     }
 
-    # 'last(/' + host + '/sophos.health)<>"good"'
-
-    return requests.post(gl.zabbix_url, json=addtrigger).json()
+    return requests.post(gl.url_zabbix, json=addtrigger).json()
 
 
 def get_host(hostname):
@@ -90,7 +88,7 @@ def get_host(hostname):
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=gethost).json()
+    return requests.post(gl.url_zabbix, json=gethost).json()
 
 
 def get_host_group(groupname):
@@ -109,7 +107,7 @@ def get_host_group(groupname):
         "auth": gl.zabbix_auth
     }
 
-    return requests.get(gl.zabbix_url, json=gethostgroup).json()
+    return requests.get(gl.url_zabbix, json=gethostgroup).json()
 
 
 def get_host_groups(hostname):
@@ -129,7 +127,7 @@ def get_host_groups(hostname):
         "id": gl.zabbix_id
     }
 
-    return requests.get(gl.zabbix_url, json=gethostgroups).json()
+    return requests.get(gl.url_zabbix, json=gethostgroups).json()
 
 
 def get_items(hostid):
@@ -144,7 +142,7 @@ def get_items(hostid):
         "auth": gl.zabbix_auth
     }
 
-    return requests.get(gl.zabbix_url, json=getitems).json()
+    return requests.get(gl.url_zabbix, json=getitems).json()
 
 
 def list_hosts():
@@ -166,7 +164,7 @@ def list_hosts():
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=gethosts).json()
+    return requests.post(gl.url_zabbix, json=gethosts).json()
 
 
 def login(user, password):
@@ -182,7 +180,7 @@ def login(user, password):
         "id": zabbix_id
     }
 
-    return requests.post(gl.zabbix_url, json=loginreq).json()
+    return requests.post(gl.url_zabbix, json=loginreq).json()
 
 
 def send_alert(hostname, key, data):
@@ -208,4 +206,4 @@ def update_host_groups(hostid, groups):
         "auth": gl.zabbix_auth
     }
 
-    return requests.post(gl.zabbix_url, json=updategroups).json()
+    return requests.post(gl.url_zabbix, json=updategroups).json()

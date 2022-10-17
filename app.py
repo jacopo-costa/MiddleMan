@@ -23,21 +23,6 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 
 
-@app.route("/")
-def index():
-    zid = gl.zabbix_id
-    zauth = gl.zabbix_auth
-    sid = gl.sophos_id
-    sauth = gl.sophos_auth
-    reg = gl.region
-
-    return jsonify(ZabbixID=zid,
-                   ZabbixAuth=zauth,
-                   SophosID=sid,
-                   SophosAuth=sauth,
-                   Region=reg)
-
-
 @app.route("/status")
 @cross_origin()
 def check_thread():
@@ -112,5 +97,4 @@ def re_login():
 
 if __name__ == '__main__':
     initialize()
-    logging.info("Server avviato")
     app.run(host='0.0.0.0', port=5000)
