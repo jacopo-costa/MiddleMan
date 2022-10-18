@@ -7,24 +7,94 @@ import sophos
 import zabbix
 
 
-def check_endpoint_health(report):
-    for item in report:
-        zabbix.send_alert(item['hostname'], 'sophos.health', item['health'])
+def check_firewall_connection():
+    sophos_firewalls = sophos.get_firewalls()
+    for firewall in sophos_firewalls['items']:
+        if not firewall['status']['connected']:
+            zabbix.send_alert(firewall['name'], 'connected', 'false')
+        else:
+            zabbix.send_alert(firewall['name'], 'connected', 'true')
 
 
-# Check if a Host is in the Sophos group
-def check_group(hostname):
+def check_firewalls():
+    groupid = zabbix.get_host_group('Firewalls group')
+
+    # Check if the group exist, else create it
+    if len(groupid['result']) == 0:
+        logging.info('Adding missing')
+        groupid = zabbix.add_host_group('Firewalls group')['result']['groupids'][0]
+    else:
+        groupid = groupid['result'][0]['groupid']
+
+    sophos_firewalls = get_firewall_names(sophos.get_firewalls())
+    zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
+    # Get a list of hosts present on Sophos and not on Zabbix
+    notpresent = find_missing(zabbix_hosts, sophos_firewalls)
+    alreadypresent = get_present(zabbix_hosts, sophos_firewalls)
+
+    # Add the found hosts with their items and triggers linked to their services
+    if len(notpresent) != 0:
+        for x in notpresent:
+            logging.info("Adding firewall: {}".format(x))
+            hostid = zabbix.add_host(x, groupid)['result']['hostids']
+            logging.info("\tAdding connected item")
+            zabbix.add_item(hostid[0], 'Connected', 'connected')
+            zabbix.add_trigger('{} is offline'.format(x),
+                               'last(/{}/{})<>"true"'.format(x, 'connected'))
+
+    for i in alreadypresent:
+        check_group(i, 'Firewalls group')
+
+
+def check_group(hostname, group):
     groups = zabbix.get_host_groups(hostname)['result'][0]['hostgroups']
     flag = False
     newgroups = []
     for x in groups:
         newgroups.append({"groupid": x['groupid']})
-        if x['name'] == 'Sophos group':
+        if x['name'] == group:
             flag = True
 
     if not flag:
-        newgroups.append({"groupid": zabbix.get_host_group('Sophos group')['result'][0]['groupid']})
+        newgroups.append({"groupid": zabbix.get_host_group(group)['result'][0]['groupid']})
         zabbix.update_host_groups(zabbix.get_host(hostname)['result'][0]['hostid'], newgroups)
+
+
+def check_hosts():
+    groupid = zabbix.get_host_group('Sophos group')
+
+    # Check if the group exist, else create it
+    if len(groupid['result']) == 0:
+        logging.info('Adding missing group')
+        groupid = zabbix.add_host_group('Sophos group')['result']['groupids'][0]
+    else:
+        groupid = groupid['result'][0]['groupid']
+
+    sophos_endpoints = get_sophos_hostnames(sophos.list_endpoints())
+    zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
+    # Get a list of hosts present on Sophos and not on Zabbix
+    notpresent = find_missing(zabbix_hosts, sophos_endpoints)
+    alreadypresent = get_present(zabbix_hosts, sophos_endpoints)
+
+    # Add the found hosts with their items and triggers linked to their services
+    if len(notpresent) != 0:
+        for x in notpresent:
+            logging.info("Adding host: {}".format(x))
+            services = sophos_get_services(x)
+            hostid = zabbix.add_host(x, groupid)['result']['hostids']
+            for i in services:
+                logging.info("\tAdding service: {}".format(i))
+                zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
+                zabbix.add_trigger('{} stopped working'.format(i['name']),
+                                   'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')))
+            logging.info("\tAdding Sophos Health item")
+            zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
+            zabbix.add_trigger('{} has a problem'.format(x),
+                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'))
+
+    for i in alreadypresent:
+        check_group(i, 'Sophos group')
+        check_items(i)
 
 
 def check_items(hostname):
@@ -42,39 +112,28 @@ def check_items(hostname):
                 health = True
         if not flag:
             zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
-            zabbix.add_trigger('{} ha smesso di funzionare'.format(i['name']),
+            zabbix.add_trigger('{} stopped working'.format(i['name']),
                                'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')))
         if not health:
             zabbix.add_item(hostid, 'Sophos Health', 'sophos.health')
-            zabbix.add_trigger('{} ha un problema'.format(hostname),
+            zabbix.add_trigger('{} has a problem'.format(hostname),
                                'last(/{}/{})<>"good"'.format(hostname, 'sophos.health'))
 
 
-# Get the active services for the host
 def check_services_status():
     sophos_endpoints = get_sophos_hostnames(sophos.list_endpoints())
     for host in sophos_endpoints:
         services = sophos_get_services(host)
         for serv in services:
-            if serv['status'] != 'running':
-                zabbix.send_alert(host, serv['name'].lower().replace(' ', '.'), serv['status'])
+            zabbix.send_alert(host, serv['name'].lower().replace(' ', '.'), serv['status'])
 
 
-def check_sophos_health(endpoints):
-    health_check = []
-
+def check_sophos_health():
+    endpoints = sophos.list_endpoints()
     for key in endpoints['items']:
-        if str(key['health']['overall']) != 'good':
-            health_check.append({
-                "hostname": str(key['hostname']),
-                "health": str(key['health']['overall'])
-            })
-
-    return health_check
+        zabbix.send_alert(key['hostname'], 'sophos.health', key['health']['overall'])
 
 
-# Check if hostname is present in both systems (Zabbix & Sophos)
-# If not add to a list to return
 def find_missing(zabbix_list, sophos_list):
     notpresent = []
 
@@ -87,46 +146,11 @@ def find_missing(zabbix_list, sophos_list):
     return notpresent
 
 
-# First scan at the start of the Thread, check if hosts have the group, items and trigger
-# correctly assigned
 def first_check():
-    groupid = zabbix.get_host_group('Sophos group')
-
-    # Check if the group exist, else create it
-    if len(groupid['result']) == 0:
-        logging.info('Aggiungo il gruppo mancante')
-        groupid = zabbix.add_host_group('Sophos group')['result']['groupids'][0]
-    else:
-        groupid = groupid['result'][0]['groupid']
-
-    sophos_endpoints = get_sophos_hostnames(sophos.list_endpoints())
-    zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
-    # Get a list of hosts present on Sophos and not on Zabbix
-    notpresent = find_missing(zabbix_hosts, sophos_endpoints)
-    alreadypresent = get_present(zabbix_hosts, sophos_endpoints)
-
-    # Add the found hosts with their items and triggers linked to their services
-    if len(notpresent) != 0:
-        for x in notpresent:
-            logging.info("Aggiungo l'host: {}".format(x))
-            services = sophos_get_services(x)
-            hostid = zabbix.add_host(x, groupid)['result']['hostids']
-            for i in services:
-                logging.info("\tAggiungo il servizio: {}".format(i))
-                zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
-                zabbix.add_trigger('{} ha smesso di funzionare'.format(i['name']),
-                                   'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')))
-            logging.info("\tAggiungo l'item Sophos Health")
-            zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
-            zabbix.add_trigger('{} ha un problema'.format(x),
-                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'))
-
-    for i in alreadypresent:
-        check_group(i)
-        check_items(i)
+    check_hosts()
+    check_firewalls()
 
 
-# Check if a host in Zabbix have all Sophos services as items
 def get_present(zabbix_hosts, sophos_endpoints):
     present = []
 
@@ -139,7 +163,6 @@ def get_present(zabbix_hosts, sophos_endpoints):
     return present
 
 
-# Filter hostnames from Sophos endpoints call
 def get_sophos_hostnames(endpoints):
     hostnames = []
     for key in endpoints['items']:
@@ -147,7 +170,13 @@ def get_sophos_hostnames(endpoints):
     return hostnames
 
 
-# Filter hostnames from Zabbix get hosts call
+def get_firewall_names(firewalls):
+    names = []
+    for key in firewalls['items']:
+        names.append(str(key['name']))
+    return names
+
+
 def get_zabbix_hostnames(zabbix_hosts):
     hostnames = []
     for key in zabbix_hosts['result']:
@@ -155,14 +184,11 @@ def get_zabbix_hostnames(zabbix_hosts):
     return hostnames
 
 
-# Check if hostname is present in both systems (Zabbix & Sophos)
-# Add to a list if found
 def isolate_host(hosts):
     for host in hosts:
         sophos.isolate(host)
 
 
-# Routine Thread, do a first check then enter the loop
 def routine():
     try:
         # Check if the hosts are present in both system and update
@@ -170,11 +196,8 @@ def routine():
 
         while gl.thread_flag:
             check_services_status()
-            report = check_sophos_health(sophos.list_endpoints())
-            if report:
-                for host in report:
-                    zabbix.send_alert(host['hostname'], 'sophos.health', host['health'])
-                    start_scan(host['hostname'])
+            check_sophos_health()
+            check_firewall_connection()
             sleep(300)
 
     except Exception:

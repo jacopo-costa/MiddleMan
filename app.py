@@ -81,14 +81,11 @@ def initialize():
     gl.zabbix_auth = zabbix_login['result']
     gl.zabbix_id = zabbix_login['id']
 
-    tokenthread = threading.Thread(target=re_login, name='tokenthread')
-    tokenthread.start()
-
 
 def re_login():
     while True:
         if gl.token_expired:
-            logging.info('Richiesto nuovo token: ' + str(datetime.datetime.now()))
+            logging.info('Requested new token: ' + str(datetime.datetime.now()))
             initialize()
             requests.get('http://localhost:5000/start')
             gl.token_expired = False
@@ -97,4 +94,6 @@ def re_login():
 
 if __name__ == '__main__':
     initialize()
+    tokenthread = threading.Thread(target=re_login, name='tokenthread')
+    tokenthread.start()
     app.run(host='0.0.0.0', port=5000)

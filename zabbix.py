@@ -184,14 +184,11 @@ def login(user, password):
 
 
 def send_alert(hostname, key, data):
-    print("{} {} {}".format(hostname, key, data))
     metrics = []
     m = ZabbixMetric(hostname, key, data)
     metrics.append(m)
     zbx = ZabbixSender('Zabbix')
     zbx.send(metrics)
-
-    return
 
 
 def update_host_groups(hostid, groups):

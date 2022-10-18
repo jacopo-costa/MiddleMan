@@ -47,6 +47,12 @@ def get_endpoints_groups():
                                  "X-Tenant-ID": gl.sophos_id}).json()
 
 
+def get_firewalls():
+    return requests.get(gl.region + "/firewall/v1/firewalls",
+                        headers={"Authorization": gl.sophos_auth,
+                                 "X-Tenant-ID": gl.sophos_id}).json()
+
+
 def health_check():
     return requests.get(gl.region + "/account-health-check/v1/health-check",
                         headers={"Authorization": gl.sophos_auth,
