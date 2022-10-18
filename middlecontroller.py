@@ -34,13 +34,20 @@ def check_items(hostname):
 
     for i in services:
         flag = False
+        health = False
         for x in items:
             if x['name'] == i['name']:
                 flag = True
+            if x['name'] == 'Sophos Health':
+                health = True
         if not flag:
             zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
             zabbix.add_trigger('{} ha smesso di funzionare'.format(i['name']),
                                'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')))
+        if not health:
+            zabbix.add_item(hostid, 'Sophos Health', 'sophos.health')
+            zabbix.add_trigger('{} ha un problema'.format(hostname),
+                               'last(/{}/{})<>"good"'.format(hostname, 'sophos.health'))
 
 
 # Get the active services for the host
@@ -109,6 +116,10 @@ def first_check():
                 zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
                 zabbix.add_trigger('{} ha smesso di funzionare'.format(i['name']),
                                    'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')))
+            logging.info("\tAggiungo l'item Sophos Health")
+            zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
+            zabbix.add_trigger('{} ha un problema'.format(x),
+                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'))
 
     for i in alreadypresent:
         check_group(i)
@@ -161,7 +172,9 @@ def routine():
             check_services_status()
             report = check_sophos_health(sophos.list_endpoints())
             if report:
-                start_scan(report)
+                for host in report:
+                    zabbix.send_alert(host['hostname'], 'sophos.health', host['health'])
+                    start_scan(host['hostname'])
             sleep(300)
 
     except Exception:
@@ -175,7 +188,6 @@ def sophos_get_services(x):
     return sophos.get_endpoint('', '?hostnameContains=' + x)['items'][0]['health']['services']['serviceDetails']
 
 
-def start_scan(report):
-    for host in report:
-        hostid = sophos.get_endpoint('', '?hostnameContains=' + host['hostname'])['items'][0]['id']
-        logging.info(sophos.execute_scan(hostid))
+def start_scan(hostname):
+    hostid = sophos.get_endpoint('', '?hostnameContains=' + hostname)['items'][0]['id']
+    logging.info(sophos.execute_scan(hostid))
