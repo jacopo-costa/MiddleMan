@@ -68,10 +68,15 @@ def isolate(host):
                           ).json()
 
 
-def last_24h_alerts():
-    return requests.get(gl.region + "/siem/v1/alerts",
-                        headers={"Authorization": gl.sophos_auth,
-                                 "X-Tenant-ID": gl.sophos_id}).json()
+def last_24h_alerts(query):
+    if query:
+        return requests.get(gl.region + "/siem/v1/alerts" + query,
+                            headers={"Authorization": gl.sophos_auth,
+                                     "X-Tenant-ID": gl.sophos_id}).json()
+    else:
+        return requests.get(gl.region + "/siem/v1/alerts",
+                            headers={"Authorization": gl.sophos_auth,
+                                     "X-Tenant-ID": gl.sophos_id}).json()
 
 
 def last_24h_events():

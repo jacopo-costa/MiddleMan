@@ -20,7 +20,12 @@ app = Flask(__name__)
 app.secret_key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 CORS(app)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
+                    level=logging.INFO,
+                    datefmt='%d-%m-%Y %H:%M:%S')
+
+
+logging.getLogger('werkzeug').disabled = True
 
 
 @app.route("/status")
@@ -93,6 +98,7 @@ def re_login():
 
 
 if __name__ == '__main__':
+    logging.info("MiddleMan started")
     initialize()
     tokenthread = threading.Thread(target=re_login, name='tokenthread')
     tokenthread.start()
