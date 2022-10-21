@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.7.15-alpine
+FROM python:alpine
 
 WORKDIR /app
 
@@ -14,10 +14,8 @@ ENV SOPHOS_SECRET=$SOPHOS_SECRET
 ENV ZABBIX_USER=$ZABBIX_USER
 ENV ZABBIX_PASS=$ZABBIX_PASS
 
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-
 COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
 
 ENTRYPOINT [ "python" ]
 
