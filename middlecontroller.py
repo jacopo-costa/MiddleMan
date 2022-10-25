@@ -1,6 +1,5 @@
 import logging
 import time
-import traceback
 from time import sleep
 
 import global_vars as gl
@@ -228,8 +227,8 @@ def routine():
             check_alerts()
             sleep(300)
 
-    except Exception:
-        logging.error(traceback.print_exc())
+    except Exception as e:
+        logging.error(e)
         gl.thread_flag = False
         gl.token_expired = True
         return

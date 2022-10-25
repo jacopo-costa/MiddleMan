@@ -1,4 +1,3 @@
-import datetime
 import logging
 import os
 import random
@@ -24,10 +23,9 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%d-%m-%Y %H:%M:%S')
 
-
 logging.getLogger('werkzeug').disabled = True
 
-
+# Get status of thread, used by Zabbix
 @app.route("/status")
 @cross_origin()
 def check_thread():
@@ -90,10 +88,10 @@ def initialize():
 def re_login():
     while True:
         if gl.token_expired:
-            logging.info('Requested new token: ' + str(datetime.datetime.now()))
+            logging.info('Requested new token')
             initialize()
-            requests.get('http://localhost:5000/start')
             gl.token_expired = False
+            requests.get('http://localhost:5000/start')
         sleep(300)
 
 
