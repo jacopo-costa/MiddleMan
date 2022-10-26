@@ -2,25 +2,59 @@ import logging
 import time
 from time import sleep
 
-import global_vars as gl
+import config as cfg
 import sophos
 import zabbix
 
 
 def check_alerts():
+    """
+    Get the alerts from the past 5 minutes.
+    If there is any send an alert to the appropriate
+    Zabbix item.
+    :return:
+    """
     five_minutes_ago = int(time.time()) - 5 * 60
     alerts = sophos.last_24h_alerts('?from_date=' + str(five_minutes_ago))
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.low', alert['description'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.low', alert['description'] + ' -> ' + alert['location'])
         elif alert['severity'] == 'medium':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.medium', alert['description'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.medium', alert['description'] + ' -> ' + alert['location'])
         elif alert['severity'] == 'high':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.high', alert['description'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.high', alert['description'] + ' -> ' + alert['location'])
+
+
+def check_events():
+    """
+    Get the events from the past 5 minutes.
+    If there is any send an alert to the appropriate
+    Zabbix item.
+    :return:
+    """
+    five_minutes_ago = int(time.time()) - 5 * 60
+    events = sophos.last_24h_events('?from_date=' + str(five_minutes_ago))
+
+    for event in events['items']:
+        if event['severity'] == 'low':
+            zabbix.send_alert('Sophos Events', 'sophos.event.low', event['name'] + ' -> ' + event['location'])
+        elif event['severity'] == 'medium':
+            zabbix.send_alert('Sophos Events', 'sophos.event.medium', event['name'] + ' -> ' + event['location'])
+        elif event['severity'] == 'high':
+            zabbix.send_alert('Sophos Events', 'sophos.event.high', event['name'] + ' -> ' + event['location'])
+        elif event['severity'] == 'none':
+            zabbix.send_alert('Sophos Events', 'sophos.event.none', event['name'] + ' -> ' + event['location'])
+        elif event['severity'] == 'critical':
+            zabbix.send_alert('Sophos Events', 'sophos.event.critical', event['name'] + ' -> ' + event['location'])
 
 
 def check_firewall_connection():
+    """
+    Get the firewalls data and send an alert
+    if they are offline.
+    :return:
+    """
     sophos_firewalls = sophos.get_firewalls()
     for firewall in sophos_firewalls['items']:
         if not firewall['status']['connected']:
@@ -30,6 +64,14 @@ def check_firewall_connection():
 
 
 def check_group(hostname, group):
+    """
+    Check if the passed group name is present
+    in the host groups list.
+    Else add it.
+    :param hostname: Host to check
+    :param group: Group name to search
+    :return:
+    """
     groups = zabbix.get_host_groups(hostname)['result'][0]['hostgroups']
     flag = False
     newgroups = []
@@ -44,6 +86,13 @@ def check_group(hostname, group):
 
 
 def check_items(hostname):
+    """
+    Check if a Host has saved every item for its services
+    and the Sophos Health.
+    If not add it.
+    :param hostname: Host to check
+    :return:
+    """
     hostid = zabbix.get_host(hostname)['result'][0]['hostid']
     items = zabbix.get_items(hostid)['result']
     services = sophos_get_services(hostname)
@@ -59,14 +108,20 @@ def check_items(hostname):
         if not flag:
             zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
             zabbix.add_trigger('{} stopped working'.format(i['name']),
-                               'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')))
+                               'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')), 2)
         if not health:
             zabbix.add_item(hostid, 'Sophos Health', 'sophos.health')
             zabbix.add_trigger('{} has a problem'.format(hostname),
-                               'last(/{}/{})<>"good"'.format(hostname, 'sophos.health'))
+                               'last(/{}/{})<>"good"'.format(hostname, 'sophos.health'), 2)
 
 
 def check_services_status(endpoints):
+    """
+    Update the status for every service and
+    send it to Zabbix
+    :param endpoints: Endpoints list from Sophos
+    :return:
+    """
     sophos_endpoints = get_sophos_hostnames(endpoints)
     for host in sophos_endpoints:
         services = sophos_get_services(host)
@@ -75,15 +130,28 @@ def check_services_status(endpoints):
 
 
 def check_sophos_health(endpoints):
+    """
+    Update the health check for every endpoint
+    and send it to Zabbix
+    :param endpoints: Endpoints list from Sophos
+    :return:
+    """
     for key in endpoints['items']:
         zabbix.send_alert(key['hostname'], 'sophos.health', key['health']['overall'])
 
 
-def find_missing(zabbix_list, sophos_list):
+def find_missing(zabbix_hosts, sophos_endpoints):
+    """
+    Confront the list of host on the systems,
+    if there are discrepancies append to the list.
+    :param zabbix_hosts: List of hosts in Zabbix
+    :param sophos_endpoints: List of endpoints in Sophos
+    :return: List of hostnames present only on Sophos
+    """
     notpresent = []
 
-    for item in sophos_list:
-        if zabbix_list.__contains__(item):
+    for item in sophos_endpoints:
+        if zabbix_hosts.__contains__(item):
             pass
         else:
             notpresent.append(item)
@@ -92,12 +160,23 @@ def find_missing(zabbix_list, sophos_list):
 
 
 def first_check():
+    """
+    Aggregate function for the first checks
+    :return:
+    """
     first_check_hosts()
     first_check_firewalls()
     first_check_alerts()
+    first_check_events()
 
 
 def first_check_alerts():
+    """
+    Check if the Sophos Alerts host is present on Zabbix with
+    the low, medium and high items.
+    If not add them.
+    :return:
+    """
     groupid = zabbix.get_host_group('Sophos group')['result'][0]['groupid']
     if len(zabbix.get_host('Sophos Alerts')['result']) == 0:
         hostid = zabbix.add_host('Sophos Alerts', groupid)['result']['hostids']
@@ -106,7 +185,29 @@ def first_check_alerts():
         zabbix.add_item(hostid[0], 'Sophos Alert High', 'sophos.alert.high')
 
 
+def first_check_events():
+    """
+    Check if the Sophos Events host is present on Zabbix with
+    the low, medium and high items.
+    If not add them.
+    :return:
+    """
+    groupid = zabbix.get_host_group('Sophos group')['result'][0]['groupid']
+    if len(zabbix.get_host('Sophos Events')['result']) == 0:
+        hostid = zabbix.add_host('Sophos Events', groupid)['result']['hostids']
+        zabbix.add_item(hostid[0], 'Sophos Event None', 'sophos.event.none')
+        zabbix.add_item(hostid[0], 'Sophos Event Low', 'sophos.event.low')
+        zabbix.add_item(hostid[0], 'Sophos Event Medium', 'sophos.event.medium')
+        zabbix.add_item(hostid[0], 'Sophos Event High', 'sophos.event.high')
+        zabbix.add_item(hostid[0], 'Sophos Event Critical', 'sophos.event.critical')
+
+
 def first_check_firewalls():
+    """
+    Check if the firewalls host and group are present on Zabbix.
+    If not add them with the connected item.
+    :return:
+    """
     groupid = zabbix.get_host_group('Firewalls group')
 
     # Check if the group exist, else create it
@@ -130,13 +231,19 @@ def first_check_firewalls():
             logging.info("\tAdding connected item")
             zabbix.add_item(hostid[0], 'Connected', 'connected')
             zabbix.add_trigger('{} is offline'.format(x),
-                               'last(/{}/{})<>"true"'.format(x, 'connected'))
+                               'last(/{}/{})<>"true"'.format(x, 'connected'), 2)
 
     for i in alreadypresent:
         check_group(i, 'Firewalls group')
 
 
 def first_check_hosts():
+    """
+    Check if the hosts and the Sophos group are present on Zabbix.
+    If not add them with the associated items for their services and
+    the Sophos Health.
+    :return:
+    """
     groupid = zabbix.get_host_group('Sophos group')
 
     # Check if the group exist, else create it
@@ -159,14 +266,14 @@ def first_check_hosts():
             services = sophos_get_services(x)
             hostid = zabbix.add_host(x, groupid)['result']['hostids']
             for i in services:
-                logging.info("\tAdding service: {}".format(i))
+                logging.info("\tAdding service: {}".format(i['name']))
                 zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
                 zabbix.add_trigger('{} stopped working'.format(i['name']),
-                                   'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')))
+                                   'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')), 2)
             logging.info("\tAdding Sophos Health item")
             zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
             zabbix.add_trigger('{} has a problem'.format(x),
-                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'))
+                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'), 2)
 
     for i in alreadypresent:
         check_group(i, 'Sophos group')
@@ -174,6 +281,11 @@ def first_check_hosts():
 
 
 def get_firewall_names(firewalls):
+    """
+    Filter the names out of the Sophos get firewalls
+    :param firewalls: Firewalls data from Sophos
+    :return: List of firewalls names
+    """
     names = []
     for key in firewalls['items']:
         names.append(str(key['name']))
@@ -181,6 +293,13 @@ def get_firewall_names(firewalls):
 
 
 def get_present(zabbix_hosts, sophos_endpoints):
+    """
+    Confront the list of host on the systems,
+    if they are on both system append them to the list.
+    :param zabbix_hosts: List of hosts in Zabbix
+    :param sophos_endpoints: List of endpoints in Sophos
+    :return: List of hostnames on both systems
+    """
     present = []
 
     for item in sophos_endpoints:
@@ -193,51 +312,85 @@ def get_present(zabbix_hosts, sophos_endpoints):
 
 
 def get_sophos_hostnames(endpoints):
+    """
+    Filter the names out of the Sophos list endpoints
+    :param endpoints: Endpoints data from Sophos
+    :return: List of endpoints names
+    """
     hostnames = []
     for key in endpoints['items']:
         hostnames.append(str(key['hostname']))
     return hostnames
 
 
-def get_zabbix_hostnames(zabbix_hosts):
+def get_zabbix_hostnames(hosts):
+    """
+    Filter the names out of the Zabbix get hosts
+    :param hosts: hosts data from Zabbix
+    :return: List of hostnames
+    """
     hostnames = []
-    for key in zabbix_hosts['result']:
+    for key in hosts['result']:
         hostnames.append(str(key['host']))
     return hostnames
 
 
 def isolate_host(hosts):
+    """
+    For every host passed as parameted put it on isolation.
+    :param hosts: Host list
+    :return:
+    """
     for host in hosts:
         sophos.isolate(host)
 
 
 def routine():
+    """
+    Main function for the thread.
+    At first check if there are any discrepancies on Sophos and Zabbix.
+    Then enter a loop in which check the health of the systems and send
+    the updated status to Zabbix.
+    :return:
+    """
     try:
-        # Check if the hosts are present in both system and update
         first_check()
+        # Get endpoints outside the loop to avoid overload the
+        # Sophos API with continue requests
         endpoints = sophos.list_endpoints()
         cycle = 0
 
-        while gl.thread_flag:
+        while cfg.thread_flag:
             cycle += 1
             logging.info("Cycle n° " + str(cycle))
             check_services_status(endpoints)
             check_sophos_health(endpoints)
             check_firewall_connection()
             check_alerts()
+            check_events()
             sleep(300)
 
     except Exception as e:
         logging.error(e)
-        gl.thread_flag = False
-        gl.token_expired = True
+        cfg.thread_flag = False
+        cfg.token_expired = True
         return
 
 
-def sophos_get_services(x):
-    return sophos.get_endpoint('', '?hostnameContains=' + x)['items'][0]['health']['services']['serviceDetails']
+def sophos_get_services(hostname):
+    """
+    Get the services for the passed hostname
+    :param hostname: Hostname to search
+    :return: List of services for the host
+    """
+    return sophos.get_endpoint('', '?hostnameContains=' + hostname)['items'][0]['health']['services']['serviceDetails']
 
 
 def start_scan(hostname):
+    """
+    Start a system scan for the host
+    :param hostname: Host to scan
+    :return:
+    """
     hostid = sophos.get_endpoint('', '?hostnameContains=' + hostname)['items'][0]['id']
-    logging.info(sophos.execute_scan(hostid))
+    sophos.execute_scan(hostid)

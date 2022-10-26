@@ -1,3 +1,9 @@
+"""
+Global variables file.
+Used to store login tokens for the session, URLs and
+the status flags
+"""
+
 region = ""
 sophos_auth = ""
 sophos_id = ""

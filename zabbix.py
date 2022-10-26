@@ -1,9 +1,10 @@
 from random import randint
+from time import sleep
 
 import requests
 from pyzabbix import ZabbixSender, ZabbixMetric
 
-import global_vars as gl
+import config as cfg
 
 
 def add_host(hostname, groupid):
@@ -18,11 +19,11 @@ def add_host(hostname, groupid):
                 }
             ]
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=gethost).json()
+    return requests.post(cfg.url_zabbix, json=gethost).json()
 
 
 def add_host_group(groupname):
@@ -32,14 +33,16 @@ def add_host_group(groupname):
         "params": {
             "name": groupname
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=addhostgroup).json()
+    return requests.post(cfg.url_zabbix, json=addhostgroup).json()
 
 
 def add_item(hostid, name, key):
+    # type : 2 == Zabbix trapper
+    # value_type : 4 == text
     additem = {
         "jsonrpc": "2.0",
         "method": "item.create",
@@ -50,14 +53,14 @@ def add_item(hostid, name, key):
             "type": 2,
             "value_type": 4
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=additem).json()
+    return requests.post(cfg.url_zabbix, json=additem).json()
 
 
-def add_trigger(desc, exp):
+def add_trigger(desc, exp, priority):
     addtrigger = {
         "jsonrpc": "2.0",
         "method": "trigger.create",
@@ -65,14 +68,14 @@ def add_trigger(desc, exp):
             {
                 "description": desc,
                 "expression": exp,
-                "priority": 2
+                "priority": priority
             }
         ],
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=addtrigger).json()
+    return requests.post(cfg.url_zabbix, json=addtrigger).json()
 
 
 def get_host(hostname):
@@ -84,11 +87,11 @@ def get_host(hostname):
                 "host": hostname
             }
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=gethost).json()
+    return requests.post(cfg.url_zabbix, json=gethost).json()
 
 
 def get_host_group(groupname):
@@ -103,11 +106,11 @@ def get_host_group(groupname):
                 ]
             }
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.get(gl.url_zabbix, json=gethostgroup).json()
+    return requests.get(cfg.url_zabbix, json=gethostgroup).json()
 
 
 def get_host_groups(hostname):
@@ -123,11 +126,11 @@ def get_host_groups(hostname):
                 ]
             }
         },
-        "auth": gl.zabbix_auth,
-        "id": gl.zabbix_id
+        "auth": cfg.zabbix_auth,
+        "id": cfg.zabbix_id
     }
 
-    return requests.get(gl.url_zabbix, json=gethostgroups).json()
+    return requests.get(cfg.url_zabbix, json=gethostgroups).json()
 
 
 def get_items(hostid):
@@ -138,11 +141,11 @@ def get_items(hostid):
             "output": "extend",
             "hostids": hostid
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.get(gl.url_zabbix, json=getitems).json()
+    return requests.get(cfg.url_zabbix, json=getitems).json()
 
 
 def list_hosts():
@@ -160,11 +163,11 @@ def list_hosts():
                 "ip"
             ]
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=gethosts).json()
+    return requests.post(cfg.url_zabbix, json=gethosts).json()
 
 
 def login(user, password):
@@ -180,10 +183,11 @@ def login(user, password):
         "id": zabbix_id
     }
 
-    return requests.post(gl.url_zabbix, json=loginreq).json()
+    return requests.post(cfg.url_zabbix, json=loginreq).json()
 
 
 def send_alert(hostname, key, data):
+    sleep(1)
     metrics = []
     m = ZabbixMetric(hostname, key, data)
     metrics.append(m)
@@ -199,8 +203,8 @@ def update_host_groups(hostid, groups):
             "hostid": hostid,
             "groups": groups
         },
-        "id": gl.zabbix_id,
-        "auth": gl.zabbix_auth
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
     }
 
-    return requests.post(gl.url_zabbix, json=updategroups).json()
+    return requests.post(cfg.url_zabbix, json=updategroups).json()

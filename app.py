@@ -6,11 +6,10 @@ import sys
 import threading
 from time import sleep
 
-import requests
 from flask import Flask, jsonify
 from flask_cors import CORS, cross_origin
 
-import global_vars as gl
+import config as cfg
 import middlecontroller
 import sophos
 import zabbix
@@ -19,50 +18,68 @@ app = Flask(__name__)
 app.secret_key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 CORS(app)
 
+# Logging config with timestamp
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%d-%m-%Y %H:%M:%S')
 
+# Disable HTTP status log
 logging.getLogger('werkzeug').disabled = True
 
-# Get status of thread, used by Zabbix
+
 @app.route("/status")
 @cross_origin()
 def check_thread():
-    return str(gl.thread_flag)
+    """
+    Check if the thread is running by looking at its flag
+    :return: Value of the thread flag as string
+    """
+    return str(cfg.thread_flag)
 
 
-@app.route("/start")
 def start():
-    for th in threading.enumerate():
-        if th.name == 'middleman' and gl.thread_flag:
-            return jsonify(message='Thread already running', code=400)
-        elif th.name == 'middleman' and not gl.thread_flag:
-            gl.thread_flag = True
-            return jsonify(message='Thread started', code=200)
+    """
+    Start the thread with the check routine.
+    If the thread is already running return an error.
+    :return: Status message as JSON
+    """
+    # for th in threading.enumerate():
+    #     if th.name == 'middleman' and cfg.thread_flag:
+    #         return jsonify(message='Thread already running', code=400)
+    #     elif th.name == 'middleman' and not cfg.thread_flag:
+    #         cfg.thread_flag = True
+    #         return jsonify(message='Thread started', code=200)
 
-    gl.thread_flag = True
+    cfg.thread_flag = True
 
     middlethread = threading.Thread(target=middlecontroller.routine, name='middleman')
 
     middlethread.start()
 
-    return jsonify(message='Thread started', code=200)
 
-
-@app.route("/stop")
 def stop():
+    """
+    Stop the routine thread.
+    If there is no thread running return an error.
+    :return: Status message as JSON
+    """
     for th in threading.enumerate():
         if th.name == 'middleman':
-            if not gl.thread_flag:
+            if not cfg.thread_flag:
                 return jsonify(message='Thread already shutting down', code=400)
-            gl.thread_flag = False
+            cfg.thread_flag = False
             return jsonify(message='Thread stopped', code=200)
 
     return jsonify(message='No thread running', code=400)
 
 
 def initialize():
+    """
+    Logging into Sophos and Zabbix with data passed by
+    Docker environment variables.
+    Save the tokens on the config file.
+    :return:
+    """
     try:
         sid = os.environ['SOPHOS_ID']
         secret = os.environ['SOPHOS_SECRET']
@@ -78,20 +95,26 @@ def initialize():
 
     zabbix_login = zabbix.login(zuser, zpass)
 
-    gl.sophos_auth = token
-    gl.sophos_id = whoami['id']
-    gl.region = whoami['apiHosts']['dataRegion']
-    gl.zabbix_auth = zabbix_login['result']
-    gl.zabbix_id = zabbix_login['id']
+    cfg.sophos_auth = token
+    cfg.sophos_id = whoami['id']
+    cfg.region = whoami['apiHosts']['dataRegion']
+    cfg.zabbix_auth = zabbix_login['result']
+    cfg.zabbix_id = zabbix_login['id']
 
 
 def re_login():
+    """
+    Secondary thread that check if the Sophos token is expired
+    every 5 minutes.
+    In that case re-do the login and relaunch the thread.
+    :return:
+    """
     while True:
-        if gl.token_expired:
+        if cfg.token_expired:
             logging.info('Requested new token')
             initialize()
-            gl.token_expired = False
-            requests.get('http://localhost:5000/start')
+            cfg.token_expired = False
+            start()
         sleep(300)
 
 
@@ -100,4 +123,5 @@ if __name__ == '__main__':
     initialize()
     tokenthread = threading.Thread(target=re_login, name='tokenthread')
     tokenthread.start()
+    start()
     app.run(host='0.0.0.0', port=5000)
