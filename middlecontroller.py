@@ -235,6 +235,17 @@ def first_check_firewalls():
 
     for i in alreadypresent:
         check_group(i, 'Firewalls group')
+        # Check if connected item is present
+        hostid = zabbix.get_host(i)['result'][0]['hostid']
+        items = zabbix.get_items(hostid)['result']
+        for item in items:
+            flag = False
+            if item['name'] == 'Connected':
+                flag = True
+            if not flag:
+                zabbix.add_item(hostid[0], 'Connected', 'connected')
+                zabbix.add_trigger('{} is offline'.format(i),
+                                   'last(/{}/{})<>"true"'.format(i, 'connected'), 2)
 
 
 def first_check_hosts():

@@ -187,7 +187,7 @@ def login(user, password):
 
 
 def send_alert(hostname, key, data):
-    sleep(1)
+    sleep(0.5)
     metrics = []
     m = ZabbixMetric(hostname, key, data)
     metrics.append(m)
