@@ -19,11 +19,11 @@ def check_alerts():
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.low', alert['description'] + ' -> ' + alert['location'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.low', alert['location'] + ' -> ' + alert['description'])
         elif alert['severity'] == 'medium':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.medium', alert['description'] + ' -> ' + alert['location'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.medium', alert['location'] + ' -> ' + alert['description'])
         elif alert['severity'] == 'high':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.high', alert['description'] + ' -> ' + alert['location'])
+            zabbix.send_alert('Sophos Alerts', 'sophos.alert.high', alert['location'] + ' -> ' + alert['description'])
 
 
 def check_events():
@@ -38,15 +38,15 @@ def check_events():
 
     for event in events['items']:
         if event['severity'] == 'low':
-            zabbix.send_alert('Sophos Events', 'sophos.event.low', event['name'] + ' -> ' + event['location'])
+            zabbix.send_alert('Sophos Events', 'sophos.event.low', event['location'] + ' -> ' + event['name'])
         elif event['severity'] == 'medium':
-            zabbix.send_alert('Sophos Events', 'sophos.event.medium', event['name'] + ' -> ' + event['location'])
+            zabbix.send_alert('Sophos Events', 'sophos.event.medium', event['location'] + ' -> ' + event['name'])
         elif event['severity'] == 'high':
-            zabbix.send_alert('Sophos Events', 'sophos.event.high', event['name'] + ' -> ' + event['location'])
+            zabbix.send_alert('Sophos Events', 'sophos.event.high', event['location'] + ' -> ' + event['name'])
         elif event['severity'] == 'none':
-            zabbix.send_alert('Sophos Events', 'sophos.event.none', event['name'] + ' -> ' + event['location'])
+            zabbix.send_alert('Sophos Events', 'sophos.event.none', event['location'] + ' -> ' + event['name'])
         elif event['severity'] == 'critical':
-            zabbix.send_alert('Sophos Events', 'sophos.event.critical', event['name'] + ' -> ' + event['location'])
+            zabbix.send_alert('Sophos Events', 'sophos.event.critical', event['location'] + ' -> ' + event['name'])
 
 
 def check_firewall_connection():
@@ -366,14 +366,12 @@ def routine():
     """
     try:
         first_check()
-        # Get endpoints outside the loop to avoid overload the
-        # Sophos API with continue requests
-        endpoints = sophos.list_endpoints()
         cycle = 0
 
         while cfg.thread_flag:
             cycle += 1
             logging.info("Cycle n° " + str(cycle))
+            endpoints = sophos.list_endpoints()
             check_services_status(endpoints)
             check_sophos_health(endpoints)
             check_firewall_connection()

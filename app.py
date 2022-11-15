@@ -85,6 +85,7 @@ def initialize():
         secret = os.environ['SOPHOS_SECRET']
         zuser = os.environ['ZABBIX_USER']
         zpass = os.environ['ZABBIX_PASS']
+        cfg.url_zabbix = "http://{}:{}/api_jsonrpc.php".format(os.environ['ZABBIX_HOSTNAME'], os.environ['ZABBIX_PORT'])
     except KeyError:
         logging.error("Environment variables not set")
         sys.exit(1)
