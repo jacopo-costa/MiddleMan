@@ -187,6 +187,8 @@ def login(user, password):
 
 
 def send_alert(hostname, key, data):
+    # Wait of 0.5 sec for Zabbix to process
+    # previous data
     sleep(0.5)
     metrics = []
     m = ZabbixMetric(hostname, key, data)

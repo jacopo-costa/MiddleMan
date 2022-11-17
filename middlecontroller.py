@@ -19,11 +19,11 @@ def check_alerts():
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.low', alert['location'] + ' -> ' + alert['description'])
+            zabbix.send_alert(alert['location'], 'sophos.alert.low', alert['description'])
         elif alert['severity'] == 'medium':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.medium', alert['location'] + ' -> ' + alert['description'])
+            zabbix.send_alert(alert['location'], 'sophos.alert.medium', alert['description'])
         elif alert['severity'] == 'high':
-            zabbix.send_alert('Sophos Alerts', 'sophos.alert.high', alert['location'] + ' -> ' + alert['description'])
+            zabbix.send_alert(alert['location'], 'sophos.alert.high', alert['description'])
 
 
 def check_events():
@@ -38,15 +38,15 @@ def check_events():
 
     for event in events['items']:
         if event['severity'] == 'low':
-            zabbix.send_alert('Sophos Events', 'sophos.event.low', event['location'] + ' -> ' + event['name'])
+            zabbix.send_alert(event['location'], 'sophos.event.low', event['name'])
         elif event['severity'] == 'medium':
-            zabbix.send_alert('Sophos Events', 'sophos.event.medium', event['location'] + ' -> ' + event['name'])
+            zabbix.send_alert(event['location'], 'sophos.event.medium', event['name'])
         elif event['severity'] == 'high':
-            zabbix.send_alert('Sophos Events', 'sophos.event.high', event['location'] + ' -> ' + event['name'])
+            zabbix.send_alert(event['location'], 'sophos.event.high', event['name'])
         elif event['severity'] == 'none':
-            zabbix.send_alert('Sophos Events', 'sophos.event.none', event['location'] + ' -> ' + event['name'])
+            zabbix.send_alert(event['location'], 'sophos.event.none', event['name'])
         elif event['severity'] == 'critical':
-            zabbix.send_alert('Sophos Events', 'sophos.event.critical', event['location'] + ' -> ' + event['name'])
+            zabbix.send_alert(event['location'], 'sophos.event.critical', event['name'])
 
 
 def check_firewall_connection():
@@ -97,6 +97,12 @@ def check_items(hostname):
     items = zabbix.get_items(hostid)['result']
     services = sophos_get_services(hostname)
 
+    for alert in cfg.alerts:
+        zabbix.add_item(hostid, alert, alert.lower().replace(' ', '.'))
+
+    for event in cfg.events:
+        zabbix.add_item(hostid, event, event.lower().replace(' ', '.'))
+
     for i in services:
         flag = False
         health = False
@@ -105,6 +111,7 @@ def check_items(hostname):
                 flag = True
             if x['name'] == 'Sophos Health':
                 health = True
+
         if not flag:
             zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
             zabbix.add_trigger('{} stopped working'.format(i['name']),
@@ -166,8 +173,8 @@ def first_check():
     """
     first_check_hosts()
     first_check_firewalls()
-    first_check_alerts()
-    first_check_events()
+    #first_check_alerts()
+    #first_check_events()
 
 
 def first_check_alerts():
@@ -232,6 +239,13 @@ def first_check_firewalls():
             zabbix.add_item(hostid[0], 'Connected', 'connected')
             zabbix.add_trigger('{} is offline'.format(x),
                                'last(/{}/{})<>"true"'.format(x, 'connected'), 2)
+            for alert in cfg.alerts:
+                logging.info("\tAdding alert: {}".format(alert))
+                zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
+
+            for event in cfg.events:
+                logging.info("\tAdding event: {}".format(event))
+                zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
 
     for i in alreadypresent:
         check_group(i, 'Firewalls group')
@@ -246,13 +260,18 @@ def first_check_firewalls():
                 zabbix.add_item(hostid[0], 'Connected', 'connected')
                 zabbix.add_trigger('{} is offline'.format(i),
                                    'last(/{}/{})<>"true"'.format(i, 'connected'), 2)
+        for alert in cfg.alerts:
+            zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
+
+        for event in cfg.events:
+            zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
 
 
 def first_check_hosts():
     """
     Check if the hosts and the Sophos group are present on Zabbix.
-    If not add them with the associated items for their services and
-    the Sophos Health.
+    If not add them with the associated items for their services,
+    the Sophos Health and the events/alerts.
     :return:
     """
     groupid = zabbix.get_host_group('Sophos group')
@@ -281,6 +300,15 @@ def first_check_hosts():
                 zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
                 zabbix.add_trigger('{} stopped working'.format(i['name']),
                                    'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')), 2)
+
+            for alert in cfg.alerts:
+                logging.info("\tAdding alert: {}".format(alert))
+                zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
+
+            for event in cfg.events:
+                logging.info("\tAdding event: {}".format(event))
+                zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
+
             logging.info("\tAdding Sophos Health item")
             zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
             zabbix.add_trigger('{} has a problem'.format(x),
