@@ -7,7 +7,7 @@ from pyzabbix import ZabbixSender, ZabbixMetric
 import config as cfg
 
 
-def add_host(hostname, groupid):
+def add_host(hostname, groupid, templateid):
     gethost = {
         "jsonrpc": "2.0",
         "method": "host.create",
@@ -16,6 +16,11 @@ def add_host(hostname, groupid):
             "groups": [
                 {
                     "groupid": groupid
+                }
+            ],
+            "templates": [
+                {
+                    "templateid": templateid
                 }
             ]
         },
@@ -60,6 +65,37 @@ def add_item(hostid, name, key):
     return requests.post(cfg.url_zabbix, json=additem).json()
 
 
+def add_template(groupid, name):
+    template = {
+        "jsonrpc": "2.0",
+        "method": "template.create",
+        "params": {
+            "host": name,
+            "groups": {
+                "groupid": groupid
+            }
+        },
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
+    }
+
+    return requests.post(cfg.url_zabbix, json=template).json()
+
+
+def add_template_group(groupname):
+    templategroup = {
+        "jsonrpc": "2.0",
+        "method": "templategroup.create",
+        "params": {
+            "name": groupname
+        },
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
+    }
+
+    return requests.post(cfg.url_zabbix, json=templategroup).json()
+
+
 def add_trigger(desc, exp, priority):
     addtrigger = {
         "jsonrpc": "2.0",
@@ -91,7 +127,7 @@ def get_host(hostname):
         "auth": cfg.zabbix_auth
     }
 
-    return requests.post(cfg.url_zabbix, json=gethost).json()
+    return requests.get(cfg.url_zabbix, json=gethost).json()
 
 
 def get_host_group(groupname):
@@ -148,6 +184,62 @@ def get_items(hostid):
     return requests.get(cfg.url_zabbix, json=getitems).json()
 
 
+def get_linked_templates(hostid):
+    linkedtemplates = {
+        "jsonrpc": "2.0",
+        "method": "host.get",
+        "params": {
+            "output": ["hostid"],
+            "selectParentTemplates": [
+                "templateid"
+            ],
+            "hostids": hostid
+        },
+        "auth": cfg.zabbix_auth,
+        "id": cfg.zabbix_id
+    }
+
+    return requests.get(cfg.url_zabbix, json=linkedtemplates).json()
+
+
+def get_template(name):
+    gettemplate = {
+        "jsonrpc": "2.0",
+        "method": "template.get",
+        "params": {
+            "output": "extend",
+            "filter": {
+                "host": [
+                    name
+                ]
+            }
+        },
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
+    }
+
+    return requests.get(cfg.url_zabbix, json=gettemplate).json()
+
+
+def get_template_group(name):
+    gettemplategroup = {
+        "jsonrpc": "2.0",
+        "method": "templategroup.get",
+        "params": {
+            "output": "extend",
+            "filter": {
+                "name": [
+                    name
+                ]
+            }
+        },
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
+    }
+
+    return requests.get(cfg.url_zabbix, json=gettemplategroup).json()
+
+
 def list_hosts():
     gethosts = {
         "jsonrpc": "2.0",
@@ -167,7 +259,7 @@ def list_hosts():
         "auth": cfg.zabbix_auth
     }
 
-    return requests.post(cfg.url_zabbix, json=gethosts).json()
+    return requests.get(cfg.url_zabbix, json=gethosts).json()
 
 
 def login(user, password):
@@ -210,3 +302,18 @@ def update_host_groups(hostid, groups):
     }
 
     return requests.post(cfg.url_zabbix, json=updategroups).json()
+
+
+def update_host_templates(hostid, templates):
+    updatetemplates = {
+        "jsonrpc": "2.0",
+        "method": "host.update",
+        "params": {
+            "hostid": hostid,
+            "templates": templates
+        },
+        "id": cfg.zabbix_id,
+        "auth": cfg.zabbix_auth
+    }
+
+    return requests.post(cfg.url_zabbix, json=updatetemplates).json()

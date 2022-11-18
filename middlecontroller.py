@@ -19,11 +19,11 @@ def check_alerts():
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
-            zabbix.send_alert(alert['location'], 'sophos.alert.low', alert['description'])
+            zabbix.send_alert(alert['location'], 'c_sophos.alert.low', alert['description'])
         elif alert['severity'] == 'medium':
-            zabbix.send_alert(alert['location'], 'sophos.alert.medium', alert['description'])
+            zabbix.send_alert(alert['location'], 'c_sophos.alert.medium', alert['description'])
         elif alert['severity'] == 'high':
-            zabbix.send_alert(alert['location'], 'sophos.alert.high', alert['description'])
+            zabbix.send_alert(alert['location'], 'c_sophos.alert.high', alert['description'])
 
 
 def check_events():
@@ -38,15 +38,15 @@ def check_events():
 
     for event in events['items']:
         if event['severity'] == 'low':
-            zabbix.send_alert(event['location'], 'sophos.event.low', event['name'])
+            zabbix.send_alert(event['location'], 'c_sophos.event.low', event['name'])
         elif event['severity'] == 'medium':
-            zabbix.send_alert(event['location'], 'sophos.event.medium', event['name'])
+            zabbix.send_alert(event['location'], 'c_sophos.event.medium', event['name'])
         elif event['severity'] == 'high':
-            zabbix.send_alert(event['location'], 'sophos.event.high', event['name'])
+            zabbix.send_alert(event['location'], 'c_sophos.event.high', event['name'])
         elif event['severity'] == 'none':
-            zabbix.send_alert(event['location'], 'sophos.event.none', event['name'])
+            zabbix.send_alert(event['location'], 'c_sophos.event.none', event['name'])
         elif event['severity'] == 'critical':
-            zabbix.send_alert(event['location'], 'sophos.event.critical', event['name'])
+            zabbix.send_alert(event['location'], 'c_sophos.event.critical', event['name'])
 
 
 def check_firewall_connection():
@@ -73,16 +73,14 @@ def check_group(hostname, group):
     :return:
     """
     groups = zabbix.get_host_groups(hostname)['result'][0]['hostgroups']
-    flag = False
     newgroups = []
     for x in groups:
-        newgroups.append({"groupid": x['groupid']})
         if x['name'] == group:
-            flag = True
+            return
+        newgroups.append({"groupid": x['groupid']})
 
-    if not flag:
-        newgroups.append({"groupid": zabbix.get_host_group(group)['result'][0]['groupid']})
-        zabbix.update_host_groups(zabbix.get_host(hostname)['result'][0]['hostid'], newgroups)
+    newgroups.append({"groupid": zabbix.get_host_group(group)['result'][0]['groupid']})
+    zabbix.update_host_groups(zabbix.get_host(hostname)['result'][0]['hostid'], newgroups)
 
 
 def check_items(hostname):
@@ -97,29 +95,14 @@ def check_items(hostname):
     items = zabbix.get_items(hostid)['result']
     services = sophos_get_services(hostname)
 
-    for alert in cfg.alerts:
-        zabbix.add_item(hostid, alert, alert.lower().replace(' ', '.'))
-
-    for event in cfg.events:
-        zabbix.add_item(hostid, event, event.lower().replace(' ', '.'))
-
     for i in services:
-        flag = False
-        health = False
         for x in items:
             if x['name'] == i['name']:
-                flag = True
-            if x['name'] == 'Sophos Health':
-                health = True
+                break
 
-        if not flag:
-            zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
-            zabbix.add_trigger('{} stopped working'.format(i['name']),
-                               'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')), 2)
-        if not health:
-            zabbix.add_item(hostid, 'Sophos Health', 'sophos.health')
-            zabbix.add_trigger('{} has a problem'.format(hostname),
-                               'last(/{}/{})<>"good"'.format(hostname, 'sophos.health'), 2)
+        zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
+        zabbix.add_trigger('{} stopped working'.format(i['name']),
+                           'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')), 2)
 
 
 def check_services_status(endpoints):
@@ -145,6 +128,20 @@ def check_sophos_health(endpoints):
     """
     for key in endpoints['items']:
         zabbix.send_alert(key['hostname'], 'sophos.health', key['health']['overall'])
+
+
+def check_template(hostname, templateid):
+    hostid = zabbix.get_host(hostname)['result'][0]['hostid']
+    templates_list = zabbix.get_linked_templates(hostid)['result'][0]['parentTemplates']
+
+    for item in templates_list:
+        if item['templateid'] == templateid:
+            return
+
+    template = {'templateid': templateid}
+    templates_list.append(template)
+
+    zabbix.update_host_templates(hostid, templates_list)
 
 
 def find_missing(zabbix_hosts, sophos_endpoints):
@@ -173,40 +170,6 @@ def first_check():
     """
     first_check_hosts()
     first_check_firewalls()
-    #first_check_alerts()
-    #first_check_events()
-
-
-def first_check_alerts():
-    """
-    Check if the Sophos Alerts host is present on Zabbix with
-    the low, medium and high items.
-    If not add them.
-    :return:
-    """
-    groupid = zabbix.get_host_group('Sophos group')['result'][0]['groupid']
-    if len(zabbix.get_host('Sophos Alerts')['result']) == 0:
-        hostid = zabbix.add_host('Sophos Alerts', groupid)['result']['hostids']
-        zabbix.add_item(hostid[0], 'Sophos Alert Low', 'sophos.alert.low')
-        zabbix.add_item(hostid[0], 'Sophos Alert Medium', 'sophos.alert.medium')
-        zabbix.add_item(hostid[0], 'Sophos Alert High', 'sophos.alert.high')
-
-
-def first_check_events():
-    """
-    Check if the Sophos Events host is present on Zabbix with
-    the low, medium and high items.
-    If not add them.
-    :return:
-    """
-    groupid = zabbix.get_host_group('Sophos group')['result'][0]['groupid']
-    if len(zabbix.get_host('Sophos Events')['result']) == 0:
-        hostid = zabbix.add_host('Sophos Events', groupid)['result']['hostids']
-        zabbix.add_item(hostid[0], 'Sophos Event None', 'sophos.event.none')
-        zabbix.add_item(hostid[0], 'Sophos Event Low', 'sophos.event.low')
-        zabbix.add_item(hostid[0], 'Sophos Event Medium', 'sophos.event.medium')
-        zabbix.add_item(hostid[0], 'Sophos Event High', 'sophos.event.high')
-        zabbix.add_item(hostid[0], 'Sophos Event Critical', 'sophos.event.critical')
 
 
 def first_check_firewalls():
@@ -215,14 +178,17 @@ def first_check_firewalls():
     If not add them with the connected item.
     :return:
     """
-    groupid = zabbix.get_host_group('Firewalls group')
+    groupid = zabbix.get_host_group("{} Firewalls".format(cfg.tenant_name))
 
     # Check if the group exist, else create it
     if len(groupid['result']) == 0:
         logging.info('Adding missing')
-        groupid = zabbix.add_host_group('Firewalls group')['result']['groupids'][0]
+        groupid = zabbix.add_host_group("{} Firewalls".format(cfg.tenant_name))['result']['groupids'][0]
     else:
         groupid = groupid['result'][0]['groupid']
+
+    # Check if the template exist, else create it and return the ID
+    templateid = first_check_template("Firewalls")
 
     sophos_firewalls = get_firewall_names(sophos.get_firewalls())
     zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
@@ -234,37 +200,11 @@ def first_check_firewalls():
     if len(notpresent) != 0:
         for x in notpresent:
             logging.info("Adding firewall: {}".format(x))
-            hostid = zabbix.add_host(x, groupid)['result']['hostids']
-            logging.info("\tAdding connected item")
-            zabbix.add_item(hostid[0], 'Connected', 'connected')
-            zabbix.add_trigger('{} is offline'.format(x),
-                               'last(/{}/{})<>"true"'.format(x, 'connected'), 2)
-            for alert in cfg.alerts:
-                logging.info("\tAdding alert: {}".format(alert))
-                zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
-
-            for event in cfg.events:
-                logging.info("\tAdding event: {}".format(event))
-                zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
+            zabbix.add_host(x, groupid, templateid)
 
     for i in alreadypresent:
-        check_group(i, 'Firewalls group')
-        # Check if connected item is present
-        hostid = zabbix.get_host(i)['result'][0]['hostid']
-        items = zabbix.get_items(hostid)['result']
-        for item in items:
-            flag = False
-            if item['name'] == 'Connected':
-                flag = True
-            if not flag:
-                zabbix.add_item(hostid[0], 'Connected', 'connected')
-                zabbix.add_trigger('{} is offline'.format(i),
-                                   'last(/{}/{})<>"true"'.format(i, 'connected'), 2)
-        for alert in cfg.alerts:
-            zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
-
-        for event in cfg.events:
-            zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
+        check_group(i, "{} Firewalls".format(cfg.tenant_name))
+        check_template(i, templateid)
 
 
 def first_check_hosts():
@@ -274,14 +214,17 @@ def first_check_hosts():
     the Sophos Health and the events/alerts.
     :return:
     """
-    groupid = zabbix.get_host_group('Sophos group')
+    groupid = zabbix.get_host_group("{} Hosts".format(cfg.tenant_name))
 
     # Check if the group exist, else create it
     if len(groupid['result']) == 0:
         logging.info('Adding missing group')
-        groupid = zabbix.add_host_group('Sophos group')['result']['groupids'][0]
+        groupid = zabbix.add_host_group("{} Hosts".format(cfg.tenant_name))['result']['groupids'][0]
     else:
         groupid = groupid['result'][0]['groupid']
+
+    # Check if the template exist, else create it and return the ID
+    templateid = first_check_template("Hosts")
 
     sophos_endpoints = get_sophos_hostnames(sophos.list_endpoints())
     zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
@@ -294,29 +237,73 @@ def first_check_hosts():
         for x in notpresent:
             logging.info("Adding host: {}".format(x))
             services = sophos_get_services(x)
-            hostid = zabbix.add_host(x, groupid)['result']['hostids']
+            hostid = zabbix.add_host(x, groupid, templateid)['result']['hostids']
+
             for i in services:
                 logging.info("\tAdding service: {}".format(i['name']))
                 zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
                 zabbix.add_trigger('{} stopped working'.format(i['name']),
                                    'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')), 2)
 
-            for alert in cfg.alerts:
-                logging.info("\tAdding alert: {}".format(alert))
-                zabbix.add_item(hostid[0], alert, alert.lower().replace(' ', '.'))
-
-            for event in cfg.events:
-                logging.info("\tAdding event: {}".format(event))
-                zabbix.add_item(hostid[0], event, event.lower().replace(' ', '.'))
-
-            logging.info("\tAdding Sophos Health item")
-            zabbix.add_item(hostid[0], 'Sophos Health', 'sophos.health')
-            zabbix.add_trigger('{} has a problem'.format(x),
-                               'last(/{}/{})<>"good"'.format(x, 'sophos.health'), 2)
-
     for i in alreadypresent:
-        check_group(i, 'Sophos group')
+        check_group(i, "{} Hosts".format(cfg.tenant_name))
+        check_template(i, templateid)
         check_items(i)
+
+
+def first_check_template(hostype):
+    templategroupid = zabbix.get_template_group("Templates/" + cfg.tenant_name)
+
+    # Check if the group exist, else create it
+    if len(templategroupid['result']) == 0:
+        logging.info('Adding missing template group')
+        templategroupid = zabbix.add_template_group("Templates/" + cfg.tenant_name)['result']['groupids'][0]
+    else:
+        templategroupid = templategroupid['result'][0]['groupid']
+
+    # Tenant Hosts or Tenant Firewalls
+    templatenameid = zabbix.get_template("{} {}".format(cfg.tenant_name, hostype))
+
+    if len(templatenameid['result']) == 0:
+        logging.info('Adding missing template')
+        templatenameid = \
+            zabbix.add_template(templategroupid, "{} {}".format(cfg.tenant_name, hostype))['result']['templateids'][0]
+
+        alerts = ['C_Sophos Alert Low', 'C_Sophos Alert Medium', 'C_Sophos Alert High']
+        events = ['C_Sophos Event None', 'C_Sophos Event Low', 'C_Sophos Event Medium', 'C_Sophos Event High',
+                  'C_Sophos Event Critical']
+
+        if hostype == "Hosts":
+            for alert in alerts:
+                logging.info("\tAdding alert: {}".format(alert))
+                zabbix.add_item(templatenameid, alert, alert.lower().replace(' ', '.'))
+
+            for event in events:
+                logging.info("\tAdding event: {}".format(event))
+                zabbix.add_item(templatenameid, event, event.lower().replace(' ', '.'))
+
+            logging.info("\tAdding event: Sophos Health problem")
+            zabbix.add_item(templatenameid, 'C_Sophos Health', 'c_sophos.health')
+            zabbix.add_trigger('Sophos Health problem',
+                               'last(/{} {}/{})<>"good"'.format(cfg.tenant_name, hostype, 'c_sophos.health'), 2)
+
+        if hostype == "Firewalls":
+            logging.info("\tAdding connected item")
+            zabbix.add_item(templatenameid, 'Connected', 'connected')
+            zabbix.add_trigger('Firewall offline',
+                               'last(/{} {}/{})<>"true"'.format(cfg.tenant_name, hostype, 'connected'), 2)
+
+            for alert in alerts:
+                logging.info("\tAdding alert: {}".format(alert))
+                zabbix.add_item(templatenameid, alert, alert.lower().replace(' ', '.'))
+
+            for event in events:
+                logging.info("\tAdding event: {}".format(event))
+                zabbix.add_item(templatenameid, event, event.lower().replace(' ', '.'))
+    else:
+        templatenameid = templatenameid['result'][0]['templateid']
+
+    return templatenameid
 
 
 def get_firewall_names(firewalls):
@@ -393,6 +380,7 @@ def routine():
     :return:
     """
     try:
+        logging.info('Login done')
         first_check()
         cycle = 0
 
