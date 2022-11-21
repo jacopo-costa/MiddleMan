@@ -2,6 +2,12 @@ import requests
 
 import config as cfg
 
+'''
+Every function here just send a request to the Sophos API with
+the appropriate headers.
+Return the response in JSON.
+'''
+
 
 def deisolate(host):
     hostid = get_endpoint('', '?hostnameContains=' + host)['items'][0]['id']

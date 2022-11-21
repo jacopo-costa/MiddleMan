@@ -1,3 +1,10 @@
+"""
+logging: implicit
+os: To get the environment variables passed by Docker
+sys: To exit in case the environment variables are not set
+threading: Start a thread with the controller
+time: Import for the sleep function
+"""
 import logging
 import os
 import sys
@@ -12,13 +19,10 @@ import zabbix
 # logging config with timestamp
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%d-%m-%Y %H:%M:%S')
 
-# Disable HTTP status log
-logging.getLogger('werkzeug').disabled = True
-
 
 def login():
     """
-    logging into Sophos and Zabbix with data passed by
+    Login into Sophos and Zabbix with data passed by
     Docker environment variables.
     Save the tokens on the config file.
     :return:
@@ -47,14 +51,35 @@ def login():
     cfg.zabbix_id = zabbix_login['id']
 
 
+def re_login():
+    """
+    Request a new Sophos token
+    :return:
+    """
+    sid = os.environ['SOPHOS_ID']
+    secret = os.environ['SOPHOS_SECRET']
+
+    slogin = sophos.login(sid, secret)
+    whoami = sophos.whoami(slogin)
+    token = slogin['token_type'].capitalize() + " " + slogin['access_token']
+
+    cfg.sophos_auth = token
+    cfg.sophos_id = whoami['id']
+    cfg.region = whoami['apiHosts']['dataRegion']
+
+
 def start_middleman():
     """
     Start the thread with the check routine.
     :return:
     """
-    cfg.thread_flag = True
-    middlethread = threading.Thread(target=middlecontroller.routine, name='middleman')
-    middlethread.start()
+    try:
+        cfg.thread_flag = True
+        middlethread = threading.Thread(target=middlecontroller.routine, name='middleman')
+        middlethread.start()
+    except RuntimeError as run_err:
+        cfg.thread_flag = False
+        logging.error(run_err)
 
 
 def token_checker():
@@ -68,7 +93,7 @@ def token_checker():
     while True:
         if cfg.token_expired:
             logging.info('Requested new token')
-            login()
+            re_login()
             cfg.token_expired = False
             start_middleman()
         sleep(300)

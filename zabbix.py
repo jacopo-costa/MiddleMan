@@ -1,3 +1,9 @@
+"""
+random: Use a random int as ID for Zabbix
+time: Sleep for the send_alert fun
+requests: Send request to the Zabbix API
+pyzabbix: Use this library to send metrics to Zabbix
+"""
 from random import randint
 from time import sleep
 

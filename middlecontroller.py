@@ -1,3 +1,7 @@
+"""
+logging: Implicit
+time: Sleep on thread and get current time
+"""
 import logging
 import time
 from time import sleep
@@ -52,7 +56,7 @@ def check_events():
 def check_firewall_connection():
     """
     Get the firewalls data and send an alert
-    if they are offline.
+    with their status.
     :return:
     """
     sophos_firewalls = sophos.get_firewalls()
@@ -79,7 +83,9 @@ def check_group(hostname, group):
             return
         newgroups.append({"groupid": x['groupid']})
 
+    # Get the groupid from zabbix and append it to the newgroups list
     newgroups.append({"groupid": zabbix.get_host_group(group)['result'][0]['groupid']})
+    logging.info("Adding {} to the {} group".format(hostname, group))
     zabbix.update_host_groups(zabbix.get_host(hostname)['result'][0]['hostid'], newgroups)
 
 
@@ -94,15 +100,22 @@ def check_items(hostname):
     hostid = zabbix.get_host(hostname)['result'][0]['hostid']
     items = zabbix.get_items(hostid)['result']
     services = sophos_get_services(hostname)
+    exist = False
 
     for i in services:
         for x in items:
+            exist = False
+            # Iterate every item of the host
+            # if the item is already there break the loop
             if x['name'] == i['name']:
+                exist = True
                 break
 
-        zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
-        zabbix.add_trigger('{} stopped working'.format(i['name']),
-                           'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')), 2)
+        if not exist:
+            zabbix.add_item(hostid, i['name'], i['name'].lower().replace(' ', '.'))
+            logging.info("Adding item {} to {}".format(i['name'], hostname))
+            zabbix.add_trigger('{} stopped working'.format(i['name']),
+                               'last(/{}/{})<>"running"'.format(hostname, i['name'].lower().replace(' ', '.')), 2)
 
 
 def check_services_status(endpoints):
@@ -127,10 +140,17 @@ def check_sophos_health(endpoints):
     :return:
     """
     for key in endpoints['items']:
-        zabbix.send_alert(key['hostname'], 'sophos.health', key['health']['overall'])
+        zabbix.send_alert(key['hostname'], 'c_sophos.health', key['health']['overall'])
 
 
 def check_template(hostname, templateid):
+    """
+    Check if the host is already linked to the
+    template, if not add it
+    :param hostname:
+    :param templateid:
+    :return:
+    """
     hostid = zabbix.get_host(hostname)['result'][0]['hostid']
     templates_list = zabbix.get_linked_templates(hostid)['result'][0]['parentTemplates']
 
@@ -141,6 +161,7 @@ def check_template(hostname, templateid):
     template = {'templateid': templateid}
     templates_list.append(template)
 
+    logging.info("Linking the template to {}".format(hostname))
     zabbix.update_host_templates(hostid, templates_list)
 
 
@@ -163,15 +184,6 @@ def find_missing(zabbix_hosts, sophos_endpoints):
     return notpresent
 
 
-def first_check():
-    """
-    Aggregate function for the first checks
-    :return:
-    """
-    first_check_hosts()
-    first_check_firewalls()
-
-
 def first_check_firewalls():
     """
     Check if the firewalls host and group are present on Zabbix.
@@ -182,7 +194,7 @@ def first_check_firewalls():
 
     # Check if the group exist, else create it
     if len(groupid['result']) == 0:
-        logging.info('Adding missing')
+        logging.info('Adding missing firewalls group')
         groupid = zabbix.add_host_group("{} Firewalls".format(cfg.tenant_name))['result']['groupids'][0]
     else:
         groupid = groupid['result'][0]['groupid']
@@ -218,7 +230,7 @@ def first_check_hosts():
 
     # Check if the group exist, else create it
     if len(groupid['result']) == 0:
-        logging.info('Adding missing group')
+        logging.info('Adding missing hosts group')
         groupid = zabbix.add_host_group("{} Hosts".format(cfg.tenant_name))['result']['groupids'][0]
     else:
         groupid = groupid['result'][0]['groupid']
@@ -252,11 +264,18 @@ def first_check_hosts():
 
 
 def first_check_template(hostype):
+    """
+    Check if the template group and the template
+    is already on Zabbix, else create it with the
+    items and triggers depending on the host type.
+    :param hostype: (str) Firewalls or Hosts
+    :return: Template ID
+    """
     templategroupid = zabbix.get_template_group("Templates/" + cfg.tenant_name)
 
     # Check if the group exist, else create it
     if len(templategroupid['result']) == 0:
-        logging.info('Adding missing template group')
+        logging.info('Adding missing templates group')
         templategroupid = zabbix.add_template_group("Templates/" + cfg.tenant_name)['result']['groupids'][0]
     else:
         templategroupid = templategroupid['result'][0]['groupid']
@@ -364,6 +383,8 @@ def get_zabbix_hostnames(hosts):
 def isolate_host(hosts):
     """
     For every host passed as parameted put it on isolation.
+    TODO: The Tenant must have permission to do this. Right now this
+          is not called.
     :param hosts: Host list
     :return:
     """
@@ -377,11 +398,12 @@ def routine():
     At first check if there are any discrepancies on Sophos and Zabbix.
     Then enter a loop in which check the health of the systems and send
     the updated status to Zabbix.
+    Then sleep for 5 minutes.
     :return:
     """
     try:
-        logging.info('Login done')
-        first_check()
+        first_check_hosts()
+        first_check_firewalls()
         cycle = 0
 
         while cfg.thread_flag:
@@ -396,6 +418,9 @@ def routine():
             sleep(300)
 
     except Exception as e:
+        # The Sophos Token could expire while doing the work in the routine
+        # so the Exception cannot be foreseen.
+        # This catch every Exception it could happen, log the error and set the flags.
         logging.error(e)
         cfg.thread_flag = False
         cfg.token_expired = True
@@ -414,6 +439,8 @@ def sophos_get_services(hostname):
 def start_scan(hostname):
     """
     Start a system scan for the host
+    TODO: The Tenant must have permission to do this. Right now this
+          is not called.
     :param hostname: Host to scan
     :return:
     """

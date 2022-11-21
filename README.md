@@ -1,13 +1,8 @@
 # MiddleMan
 
-Add, create and update information by Sophos Cloud Central to the given Zabbix Server through API calls. 
-
-## Getting Started
-
-These instructions will cover usage information and for the docker container 
+Add, create and update information by Sophos Cloud Central to the given Zabbix Server through API calls.
 
 ### Prerequisities
-
 
 In order to run this container you'll need docker installed.
 
@@ -17,27 +12,9 @@ In order to run this container you'll need docker installed.
 
 ### Usage
 
-#### Container Parameters
-
-List the different parameters available to your container
-
-```shell
-docker run give.example.org/of/your/container:v0.2.1 parameters
-```
-
-One example per permutation 
-
-```shell
-docker run give.example.org/of/your/container:v0.2.1
-```
-
-Show how to get a shell started in your container too
-
-```shell
-docker run give.example.org/of/your/container:v0.2.1 bash
-```
-
 #### Environment Variables
+
+This environment variables are mandatory, the container doesn't start if these are not set.
 
 * `SOPHOS_ID` - ID of the Sophos Tenant
 * `SOPHOS_SECRET` - Secret of the Sophos Tenant
@@ -45,16 +22,11 @@ docker run give.example.org/of/your/container:v0.2.1 bash
 * `ZABBIX_PORT` - Port of the Zabbix Server
 * `ZABBIX_PASS` - Password of the Zabbix User
 * `ZABBIX_USER` - Username of the Zabbix User
+* `TENANT_NAME` - Name of the Tenant, used for naming the template group, templates and host groups
 
 #### Volumes
 
 None
-
-#### Useful File Locations
-
-* `/some/special/script.sh` - List special scripts
-  
-* `/magic/dir` - And also directories
 
 ## Built With
 
@@ -62,23 +34,18 @@ None
 
 ## Find Us
 
-* [GitHub](https://github.com/your/repository)
-* [Quay.io](https://quay.io/repository/your/docker-repository)
+* [GitHub](https://github.com/jacopo-costa/MiddleMan)
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
-
-## Versioning
-
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the 
-[tags on this repository](https://github.com/your/repository/tags). 
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull
+requests to us.
 
 ## Authors
 
-* **Jacopo Costa** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
+* **Jacopo Costa** - *Initial work* - [jacopo-costa](https://github.com/jacopo-costa)
 
-See also the list of [contributors](https://github.com/your/repository/contributors) who 
+See also the list of [contributors](https://github.com/jacopo-costa/MiddleMan/contributors) who
 participated in this project.
 
 ## License
@@ -87,5 +54,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Acknowledgments
 
-* People you want to thank
-* If you took a bunch of code from somewhere list it here
+* Vincenzo Morrone and all the people of [WhySecurity](https://www.whysecurity.it/)
