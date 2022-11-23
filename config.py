@@ -20,3 +20,5 @@ url_zabbix = ""
 
 # Use this as name for the groups and templates it creates
 tenant_name = ""
+
+cycle = 0

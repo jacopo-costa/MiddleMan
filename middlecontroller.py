@@ -7,8 +7,7 @@ import time
 from time import sleep
 
 import config as cfg
-import sophos
-import zabbix
+from API import zabbix, sophos
 
 
 def check_alerts():
@@ -67,11 +66,12 @@ def check_firewall_connection():
             zabbix.send_alert(firewall['name'], 'connected', 'true')
 
 
-def check_group(hostname, group):
+def check_group(hostname, hostid, group):
     """
     Check if the passed group name is present
     in the host groups list.
     Else add it.
+    :param hostid: ID of the host
     :param hostname: Host to check
     :param group: Group name to search
     :return:
@@ -86,18 +86,18 @@ def check_group(hostname, group):
     # Get the groupid from zabbix and append it to the newgroups list
     newgroups.append({"groupid": zabbix.get_host_group(group)['result'][0]['groupid']})
     logging.info("Adding {} to the {} group".format(hostname, group))
-    zabbix.update_host_groups(zabbix.get_host(hostname)['result'][0]['hostid'], newgroups)
+    zabbix.update_host_groups(hostid, newgroups)
 
 
-def check_items(hostname):
+def check_items(hostname, hostid):
     """
     Check if a Host has saved every item for its services
     and the Sophos Health.
     If not add it.
+    :param hostid: ID of the host
     :param hostname: Host to check
     :return:
     """
-    hostid = zabbix.get_host(hostname)['result'][0]['hostid']
     items = zabbix.get_items(hostid)['result']
     services = sophos_get_services(hostname)
     exist = False
@@ -143,15 +143,15 @@ def check_sophos_health(endpoints):
         zabbix.send_alert(key['hostname'], 'c_sophos.health', key['health']['overall'])
 
 
-def check_template(hostname, templateid):
+def check_template(hostname, hostid, templateid):
     """
     Check if the host is already linked to the
     template, if not add it
-    :param hostname:
-    :param templateid:
+    :param hostid: ID of the host
+    :param hostname: Name of the host
+    :param templateid: ID of the template to check
     :return:
     """
-    hostid = zabbix.get_host(hostname)['result'][0]['hostid']
     templates_list = zabbix.get_linked_templates(hostid)['result'][0]['parentTemplates']
 
     for item in templates_list:
@@ -184,7 +184,7 @@ def find_missing(zabbix_hosts, sophos_endpoints):
     return notpresent
 
 
-def first_check_firewalls():
+def first_check_firewalls(zabbix_hosts):
     """
     Check if the firewalls host and group are present on Zabbix.
     If not add them with the connected item.
@@ -203,23 +203,23 @@ def first_check_firewalls():
     templateid = first_check_template("Firewalls")
 
     sophos_firewalls = get_firewall_names(sophos.get_firewalls())
-    zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
     # Get a list of hosts present on Sophos and not on Zabbix
-    notpresent = find_missing(zabbix_hosts, sophos_firewalls)
-    alreadypresent = get_present(zabbix_hosts, sophos_firewalls)
+    notpresent = find_missing(zabbix_hosts.keys(), sophos_firewalls)
+    alreadypresent = get_present(zabbix_hosts.keys(), sophos_firewalls)
 
     # Add the found hosts with their items and triggers linked to their services
     if len(notpresent) != 0:
-        for x in notpresent:
-            logging.info("Adding firewall: {}".format(x))
-            zabbix.add_host(x, groupid, templateid)
+        for firewall in notpresent:
+            logging.info("Adding firewall: {}".format(firewall))
+            zabbix.add_host(firewall, groupid, templateid)
 
-    for i in alreadypresent:
-        check_group(i, "{} Firewalls".format(cfg.tenant_name))
-        check_template(i, templateid)
+    for firewall in alreadypresent:
+        firewallid = zabbix_hosts.get(firewall)
+        check_group(firewall, firewallid, "{} Firewalls".format(cfg.tenant_name))
+        check_template(firewall, firewallid, templateid)
 
 
-def first_check_hosts():
+def first_check_hosts(zabbix_hosts):
     """
     Check if the hosts and the Sophos group are present on Zabbix.
     If not add them with the associated items for their services,
@@ -239,28 +239,28 @@ def first_check_hosts():
     templateid = first_check_template("Hosts")
 
     sophos_endpoints = get_sophos_hostnames(sophos.list_endpoints())
-    zabbix_hosts = get_zabbix_hostnames(zabbix.list_hosts())
     # Get a list of hosts present on Sophos and not on Zabbix
-    notpresent = find_missing(zabbix_hosts, sophos_endpoints)
-    alreadypresent = get_present(zabbix_hosts, sophos_endpoints)
+    notpresent = find_missing(zabbix_hosts.keys(), sophos_endpoints)
+    alreadypresent = get_present(zabbix_hosts.keys(), sophos_endpoints)
 
     # Add the found hosts with their items and triggers linked to their services
     if len(notpresent) != 0:
-        for x in notpresent:
-            logging.info("Adding host: {}".format(x))
-            services = sophos_get_services(x)
-            hostid = zabbix.add_host(x, groupid, templateid)['result']['hostids']
+        for host in notpresent:
+            logging.info("Adding host: {}".format(host))
+            services = sophos_get_services(host)
+            hostid = zabbix.add_host(host, groupid, templateid)['result']['hostids']
 
             for i in services:
                 logging.info("\tAdding service: {}".format(i['name']))
                 zabbix.add_item(hostid[0], i['name'], i['name'].lower().replace(' ', '.'))
                 zabbix.add_trigger('{} stopped working'.format(i['name']),
-                                   'last(/{}/{})<>"running"'.format(x, i['name'].lower().replace(' ', '.')), 2)
+                                   'last(/{}/{})<>"running"'.format(host, i['name'].lower().replace(' ', '.')), 2)
 
-    for i in alreadypresent:
-        check_group(i, "{} Hosts".format(cfg.tenant_name))
-        check_template(i, templateid)
-        check_items(i)
+    for host in alreadypresent:
+        hostid = zabbix_hosts.get(host)
+        check_group(host, hostid, "{} Hosts".format(cfg.tenant_name))
+        check_template(host, hostid, templateid)
+        check_items(host, hostid)
 
 
 def first_check_template(hostype):
@@ -402,13 +402,9 @@ def routine():
     :return:
     """
     try:
-        first_check_hosts()
-        first_check_firewalls()
-        cycle = 0
-
         while cfg.thread_flag:
-            cycle += 1
-            logging.info("Cycle n° " + str(cycle))
+            cfg.cycle += 1
+            logging.info("Cycle n° " + str(cfg.cycle))
             endpoints = sophos.list_endpoints()
             check_services_status(endpoints)
             check_sophos_health(endpoints)

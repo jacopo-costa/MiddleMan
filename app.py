@@ -13,8 +13,7 @@ from time import sleep
 
 import config as cfg
 import middlecontroller
-import sophos
-import zabbix
+from API import zabbix, sophos
 
 # logging config with timestamp
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', level=logging.INFO, datefmt='%d-%m-%Y %H:%M:%S')
@@ -74,6 +73,13 @@ def start_middleman():
     :return:
     """
     try:
+        if cfg.cycle == 0:
+            zabbix_hosts = {}
+            for host in zabbix.list_hosts()['result']:
+                zabbix_hosts.update([(host['host'], host['hostid'])])
+            middlecontroller.first_check_hosts(zabbix_hosts)
+            middlecontroller.first_check_firewalls(zabbix_hosts)
+
         cfg.thread_flag = True
         middlethread = threading.Thread(target=middlecontroller.routine, name='middleman')
         middlethread.start()
