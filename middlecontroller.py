@@ -80,7 +80,7 @@ def check_group(hostname, hostid, group):
     newgroups = []
     for x in groups:
         if x['name'] == group:
-            return
+            return  # The passed group is present in the host's list, exit the function
         newgroups.append({"groupid": x['groupid']})
 
     # Get the groupid from zabbix and append it to the newgroups list
@@ -106,7 +106,8 @@ def check_items(hostname, hostid):
         for x in items:
             exist = False
             # Iterate every item of the host
-            # if the item is already there break the loop
+            # if the item is already there
+            # set the flag and break the loop
             if x['name'] == i['name']:
                 exist = True
                 break
@@ -156,7 +157,7 @@ def check_template(hostname, hostid, templateid):
 
     for item in templates_list:
         if item['templateid'] == templateid:
-            return
+            return  # The template is already linked to the host, exit the function
 
     template = {'templateid': templateid}
     templates_list.append(template)
@@ -271,22 +272,22 @@ def first_check_template(hostype):
     :param hostype: (str) Firewalls or Hosts
     :return: Template ID
     """
-    templategroupid = zabbix.get_template_group("Templates/" + cfg.tenant_name)
+    templategroupid = zabbix.get_template_group("Templates/MiddleMan")
 
     # Check if the group exist, else create it
     if len(templategroupid['result']) == 0:
         logging.info('Adding missing templates group')
-        templategroupid = zabbix.add_template_group("Templates/" + cfg.tenant_name)['result']['groupids'][0]
+        templategroupid = zabbix.add_template_group("Templates/MiddleMan")['result']['groupids'][0]
     else:
         templategroupid = templategroupid['result'][0]['groupid']
 
     # Tenant Hosts or Tenant Firewalls
-    templatenameid = zabbix.get_template("{} {}".format(cfg.tenant_name, hostype))
+    templatenameid = zabbix.get_template("MiddleMan {}".format(hostype))
 
     if len(templatenameid['result']) == 0:
         logging.info('Adding missing template')
         templatenameid = \
-            zabbix.add_template(templategroupid, "{} {}".format(cfg.tenant_name, hostype))['result']['templateids'][0]
+            zabbix.add_template(templategroupid, "MiddleMan {}".format(hostype))['result']['templateids'][0]
 
         alerts = ['C_Sophos Alert Low', 'C_Sophos Alert Medium', 'C_Sophos Alert High']
         events = ['C_Sophos Event None', 'C_Sophos Event Low', 'C_Sophos Event Medium', 'C_Sophos Event High',
@@ -365,18 +366,6 @@ def get_sophos_hostnames(endpoints):
     hostnames = []
     for key in endpoints['items']:
         hostnames.append(str(key['hostname']))
-    return hostnames
-
-
-def get_zabbix_hostnames(hosts):
-    """
-    Filter the names out of the Zabbix get hosts
-    :param hosts: hosts data from Zabbix
-    :return: List of hostnames
-    """
-    hostnames = []
-    for key in hosts['result']:
-        hostnames.append(str(key['host']))
     return hostnames
 
 

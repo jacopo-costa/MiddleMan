@@ -4,6 +4,7 @@ Used to store login tokens for the session, URLs and
 the status flags
 """
 
+# Server region of the user
 region = ""
 sophos_auth = ""
 sophos_id = ""
@@ -21,4 +22,5 @@ url_zabbix = ""
 # Use this as name for the groups and templates it creates
 tenant_name = ""
 
+# Thread cycle counter
 cycle = 0

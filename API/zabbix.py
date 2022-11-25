@@ -5,7 +5,6 @@ API: Send request to the Zabbix API
 pyzabbix: Use this library to send metrics to Zabbix
 """
 from random import randint
-from time import sleep
 
 import requests
 from pyzabbix import ZabbixSender, ZabbixMetric
@@ -283,7 +282,6 @@ def login(user, password):
 def send_alert(hostname, key, data):
     # Wait of 0.5 sec for Zabbix to process
     # previous data
-    sleep(0.5)
     metrics = []
     m = ZabbixMetric(hostname, key, data)
     metrics.append(m)

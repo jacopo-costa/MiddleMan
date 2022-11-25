@@ -73,7 +73,12 @@ def start_middleman():
     :return:
     """
     try:
+        # Check if the hosts are on zabbix only
+        # the first time the application is started
         if cfg.cycle == 0:
+
+            # Dict of zabbix hostname and hostid
+            # to avoid continuous request
             zabbix_hosts = {}
             for host in zabbix.list_hosts()['result']:
                 zabbix_hosts.update([(host['host'], host['hostid'])])
