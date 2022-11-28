@@ -102,6 +102,13 @@ def add_template_group(groupname):
 
 
 def add_trigger(desc, exp, priority):
+    # Priority
+    # 0: None
+    # 1: Information
+    # 2: Warning
+    # 3: Average
+    # 4: High
+    # 5: Critical
     addtrigger = {
         "jsonrpc": "2.0",
         "method": "trigger.create",
@@ -109,7 +116,8 @@ def add_trigger(desc, exp, priority):
             {
                 "description": desc,
                 "expression": exp,
-                "priority": priority
+                "priority": priority,
+                "manual_close": 1
             }
         ],
         "id": cfg.zabbix_id,

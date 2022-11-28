@@ -97,7 +97,7 @@ def token_checker():
     """
     About every hour the Sophos token expires.
     Check if the token is expired
-    every 5 minutes.
+    every minute.
     In that case re-do the login and relaunch the thread.
     :return:
     """
@@ -107,7 +107,7 @@ def token_checker():
             re_login()
             cfg.token_expired = False
             start_middleman()
-        sleep(300)
+        sleep(60)
 
 
 if __name__ == '__main__':

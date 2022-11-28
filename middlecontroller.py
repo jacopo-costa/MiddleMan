@@ -12,13 +12,14 @@ from API import zabbix, sophos
 
 def check_alerts():
     """
-    Get the alerts from the past 5 minutes.
+    Get the alerts from the past 3 minutes.
     If there is any send an alert to the appropriate
     Zabbix item.
     :return:
     """
-    five_minutes_ago = int(time.time()) - 5 * 60
-    alerts = sophos.last_24h_alerts('?from_date=' + str(five_minutes_ago))
+    three_minutes_ago = int(time.time()) - 3 * 60
+    alerts = sophos.last_24h_alerts('?from_date=' + str(three_minutes_ago))
+    logging.info(alerts)
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
@@ -31,13 +32,13 @@ def check_alerts():
 
 def check_events():
     """
-    Get the events from the past 5 minutes.
+    Get the events from the past 3 minutes.
     If there is any send an alert to the appropriate
     Zabbix item.
     :return:
     """
-    five_minutes_ago = int(time.time()) - 5 * 60
-    events = sophos.last_24h_events('?from_date=' + str(five_minutes_ago))
+    three_minutes_ago = int(time.time()) - 3 * 60
+    events = sophos.last_24h_events('?from_date=' + str(three_minutes_ago))
 
     for event in events['items']:
         if event['severity'] == 'low':
@@ -289,37 +290,50 @@ def first_check_template(hostype):
         templatenameid = \
             zabbix.add_template(templategroupid, "MiddleMan {}".format(hostype))['result']['templateids'][0]
 
-        alerts = ['C_Sophos Alert Low', 'C_Sophos Alert Medium', 'C_Sophos Alert High']
-        events = ['C_Sophos Event None', 'C_Sophos Event Low', 'C_Sophos Event Medium', 'C_Sophos Event High',
-                  'C_Sophos Event Critical']
-
         if hostype == "Hosts":
-            for alert in alerts:
-                logging.info("\tAdding alert: {}".format(alert))
-                zabbix.add_item(templatenameid, alert, alert.lower().replace(' ', '.'))
-
-            for event in events:
-                logging.info("\tAdding event: {}".format(event))
-                zabbix.add_item(templatenameid, event, event.lower().replace(' ', '.'))
-
             logging.info("\tAdding event: Sophos Health problem")
             zabbix.add_item(templatenameid, 'C_Sophos Health', 'c_sophos.health')
             zabbix.add_trigger('Sophos Health problem',
-                               'last(/{} {}/{})<>"good"'.format(cfg.tenant_name, hostype, 'c_sophos.health'), 2)
+                               'last(/MiddleMan {}/c_sophos.health)<>"good"'.format(hostype), 2)
 
         if hostype == "Firewalls":
             logging.info("\tAdding connected item")
             zabbix.add_item(templatenameid, 'Connected', 'connected')
             zabbix.add_trigger('Firewall offline',
-                               'last(/{} {}/{})<>"true"'.format(cfg.tenant_name, hostype, 'connected'), 2)
+                               'last(/MiddleMan {}/connected)<>"true"'.format(hostype), 2)
 
-            for alert in alerts:
-                logging.info("\tAdding alert: {}".format(alert))
-                zabbix.add_item(templatenameid, alert, alert.lower().replace(' ', '.'))
+        # Add every type of alert and event with its trigger
+        logging.info("\tAdding alert: C_Sophos Alert Low")
+        zabbix.add_item(templatenameid, 'C_Sophos Alert Low', 'c_sophos.alert.low')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.alert.low)<>0".format(hostype), 2)
 
-            for event in events:
-                logging.info("\tAdding event: {}".format(event))
-                zabbix.add_item(templatenameid, event, event.lower().replace(' ', '.'))
+        logging.info("\tAdding alert: C_Sophos Alert Medium")
+        zabbix.add_item(templatenameid, 'C_Sophos Alert Medium', 'c_sophos.alert.medium')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.alert.medium)<>0".format(hostype), 3)
+
+        logging.info("\tAdding alert: C_Sophos Alert High")
+        zabbix.add_item(templatenameid, 'C_Sophos Alert High', 'c_sophos.alert.high')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.alert.high)<>0".format(hostype), 4)
+
+        logging.info("\tAdding event: C_Sophos Event None")
+        zabbix.add_item(templatenameid, 'C_Sophos Event None', 'c_sophos.event.none')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.none)<>0".format(hostype), 1)
+
+        logging.info("\tAdding event: C_Sophos Event Low")
+        zabbix.add_item(templatenameid, 'C_Sophos Event Low', 'c_sophos.event.low')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.low)<>0".format(hostype), 2)
+
+        logging.info("\tAdding event: C_Sophos Event Medium")
+        zabbix.add_item(templatenameid, 'C_Sophos Event Medium', 'c_sophos.event.medium')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.medium)<>0".format(hostype), 3)
+
+        logging.info("\tAdding event: C_Sophos Event High")
+        zabbix.add_item(templatenameid, 'C_Sophos Event High', 'c_sophos.event.high')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.high)<>0".format(hostype), 4)
+
+        logging.info("\tAdding event: C_Sophos Event Critical")
+        zabbix.add_item(templatenameid, 'C_Sophos Event Critical', 'c_sophos.event.critical')
+        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.critical)<>0".format(hostype), 5)
     else:
         templatenameid = templatenameid['result'][0]['templateid']
 
@@ -387,7 +401,7 @@ def routine():
     At first check if there are any discrepancies on Sophos and Zabbix.
     Then enter a loop in which check the health of the systems and send
     the updated status to Zabbix.
-    Then sleep for 5 minutes.
+    Then sleep for 2 minutes.
     :return:
     """
     try:
@@ -400,7 +414,7 @@ def routine():
             check_firewall_connection()
             check_alerts()
             check_events()
-            sleep(300)
+            sleep(120)
 
     except Exception as e:
         # The Sophos Token could expire while doing the work in the routine
