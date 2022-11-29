@@ -19,7 +19,7 @@ url_sophos_login = "https://id.sophos.com/api/v2/oauth2/token"
 url_sophos_whoami = "https://api.central.sophos.com/whoami/v1"
 url_zabbix = ""
 
-# Use this as name for the groups and templates it creates
+# Use this as name for the groups it creates
 tenant_name = ""
 
 # Thread cycle counter

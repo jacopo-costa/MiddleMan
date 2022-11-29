@@ -19,7 +19,6 @@ def check_alerts():
     """
     three_minutes_ago = int(time.time()) - 3 * 60
     alerts = sophos.last_24h_alerts('?from_date=' + str(three_minutes_ago))
-    logging.info(alerts)
 
     for alert in alerts['items']:
         if alert['severity'] == 'low':
@@ -303,13 +302,21 @@ def first_check_template(hostype):
                                'last(/MiddleMan {}/connected)<>"true"'.format(hostype), 2)
 
         # Add every type of alert and event with its trigger
+        # The None, Low and Medium events/alerts auto resolve themselves after
+        # 5 minutes, so it doesn't clog the problems page
+        # The first check is always true on every new value and
+        # if it received new values in the last 5 minutes trigger a problem
         logging.info("\tAdding alert: C_Sophos Alert Low")
         zabbix.add_item(templatenameid, 'C_Sophos Alert Low', 'c_sophos.alert.low')
-        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.alert.low)<>0".format(hostype), 2)
+        zabbix.add_trigger("{ITEM.LASTVALUE}",
+                           "last(/MiddleMan {}/c_sophos.alert.low)<>0 and ".format(hostype)
+                           + "nodata(/MiddleMan {}/c_sophos.alert.low,5m)=0".format(hostype), 2)
 
         logging.info("\tAdding alert: C_Sophos Alert Medium")
         zabbix.add_item(templatenameid, 'C_Sophos Alert Medium', 'c_sophos.alert.medium')
-        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.alert.medium)<>0".format(hostype), 3)
+        zabbix.add_trigger("{ITEM.LASTVALUE}",
+                           "last(/MiddleMan {}/c_sophos.alert.medium)<>0 and ".format(hostype)
+                           + "nodata(/MiddleMan {}/c_sophos.alert.medium,5m)=0".format(hostype), 3)
 
         logging.info("\tAdding alert: C_Sophos Alert High")
         zabbix.add_item(templatenameid, 'C_Sophos Alert High', 'c_sophos.alert.high')
@@ -317,15 +324,21 @@ def first_check_template(hostype):
 
         logging.info("\tAdding event: C_Sophos Event None")
         zabbix.add_item(templatenameid, 'C_Sophos Event None', 'c_sophos.event.none')
-        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.none)<>0".format(hostype), 1)
+        zabbix.add_trigger("{ITEM.LASTVALUE}",
+                           "last(/MiddleMan {}/c_sophos.event.none)<>0 and ".format(hostype)
+                           + "nodata(/MiddleMan {}/c_sophos.event.none,5m)=0".format(hostype), 1)
 
         logging.info("\tAdding event: C_Sophos Event Low")
         zabbix.add_item(templatenameid, 'C_Sophos Event Low', 'c_sophos.event.low')
-        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.low)<>0".format(hostype), 2)
+        zabbix.add_trigger("{ITEM.LASTVALUE}",
+                           "last(/MiddleMan {}/c_sophos.event.low)<>0 and ".format(hostype)
+                           + "nodata(/MiddleMan {}/c_sophos.event.low,5m)=0".format(hostype), 2)
 
         logging.info("\tAdding event: C_Sophos Event Medium")
         zabbix.add_item(templatenameid, 'C_Sophos Event Medium', 'c_sophos.event.medium')
-        zabbix.add_trigger("{ITEM.LASTVALUE}", "last(/MiddleMan {}/c_sophos.event.medium)<>0".format(hostype), 3)
+        zabbix.add_trigger("{ITEM.LASTVALUE}",
+                           "last(/MiddleMan {}/c_sophos.event.medium)<>0 and ".format(hostype)
+                           + "nodata(/MiddleMan {}/c_sophos.event.medium,5m)=0".format(hostype), 3)
 
         logging.info("\tAdding event: C_Sophos Event High")
         zabbix.add_item(templatenameid, 'C_Sophos Event High', 'c_sophos.event.high')

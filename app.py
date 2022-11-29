@@ -102,12 +102,17 @@ def token_checker():
     :return:
     """
     while True:
-        if cfg.token_expired:
-            logging.info('Requested new token')
-            re_login()
-            cfg.token_expired = False
-            start_middleman()
-        sleep(60)
+        try:
+            if cfg.token_expired:
+                logging.info('Requested new token')
+                re_login()
+                cfg.token_expired = False
+                start_middleman()
+            sleep(60)
+        except Exception as e:
+            logging.error(e)
+            logging.info("Connection error, retrying")
+            sleep(60)
 
 
 if __name__ == '__main__':
